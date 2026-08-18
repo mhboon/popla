@@ -1,0 +1,56 @@
+# Deploys the CDK app on every push to main.
+#
+# AWS auth uses GitHub OIDC (see infra/lib/github-oidc-stack.ts) — no
+# long-lived AWS access keys are stored in this repo or as secrets. The
+# only account-specific value involved, the deploy role's ARN, lives ONLY
+# as the AWS_DEPLOY_ROLE_ARN repo secret below. That matters beyond just
+# "not committed": because it's registered as a GitHub secret, GitHub
+# automatically redacts its value — including the AWS account ID embedded
+# in it — from this workflow's log output, even output produced by `cdk
+# deploy` itself (which otherwise prints stack/resource ARNs containing
+# the account ID). Do not echo secrets. or otherwise print the account ID
+# directly; that would defeat the masking.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install dependencies
+        working-directory: infra
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy backend stack
+        working-directory: infra
+        run: npx cdk deploy PoplaBackendStack --require-approval never
+
+      - name: Deploy web stack
+        working-directory: infra
+        run: npx cdk deploy PoplaWebStack --require-approval never

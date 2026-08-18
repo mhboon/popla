@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# CDK — cdk.out and cdk.context.json can contain account-specific data
+# (resolved account IDs, VPC/AZ lookups, etc.) and must never be committed.
+infra/cdk.out/
+infra/cdk.context.json
+**/cdk-outputs*.json
+
+# build output
+infra/**/*.js
+infra/**/*.d.ts
+!infra/graphql/resolvers/*.js
+infra/**/*.tsbuildinfo
+web/dist/
+
+# env / local secrets
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.DS_Store
+*.log

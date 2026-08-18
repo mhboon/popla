@@ -1,0 +1,120 @@
+enum MatchdayFormat {
+  MEXICANO
+  AMERICANO
+}
+
+enum SeasonStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum MatchdayStatus {
+  SETUP
+  IN_PROGRESS
+  CLOSED
+}
+
+enum MatchStatus {
+  PENDING
+  COMPLETE
+}
+
+type Player {
+  playerId: ID!
+  displayName: String!
+  email: String
+  createdAt: AWSDateTime!
+}
+
+type Season {
+  seasonId: ID!
+  name: String!
+  status: SeasonStatus!
+  startDate: AWSDate!
+  closedAt: AWSDateTime
+}
+
+type Matchday {
+  matchdayId: ID!
+  seasonId: ID!
+  date: AWSDate!
+  format: MatchdayFormat!
+  status: MatchdayStatus!
+}
+
+type Match {
+  matchdayId: ID!
+  round: Int!
+  court: Int!
+  team1PlayerIds: [ID!]!
+  team2PlayerIds: [ID!]!
+  team1Games: Int
+  team2Games: Int
+  status: MatchStatus!
+}
+
+type MatchdayResult {
+  matchdayId: ID!
+  playerId: ID!
+  setsWon: Int!
+  gamesWon: Int!
+  gamesLost: Int!
+  gameDiff: Int!
+  rank: Int!
+  seasonPoints: Int!
+}
+
+type SeasonStanding {
+  seasonId: ID!
+  playerId: ID!
+  totalPoints: Int!
+  matchdaysPlayed: Int!
+}
+
+type Query {
+  listPlayers: [Player!]!
+  listSeasons: [Season!]!
+  getSeason(seasonId: ID!): Season
+  listMatchdaysBySeason(seasonId: ID!): [Matchday!]!
+  getMatchday(matchdayId: ID!): Matchday
+  listMatches(matchdayId: ID!): [Match!]!
+  getMatchdayRanking(matchdayId: ID!): [MatchdayResult!]!
+  getSeasonStanding(seasonId: ID!): [SeasonStanding!]!
+}
+
+type Mutation {
+  createPlayer(displayName: String!, email: String): Player!
+    @aws_auth(cognito_groups: ["Admins"])
+
+  createSeason(name: String!, startDate: AWSDate!): Season!
+    @aws_auth(cognito_groups: ["Admins"])
+
+  closeSeason(seasonId: ID!): Season!
+    @aws_auth(cognito_groups: ["Admins"])
+
+  createMatchday(
+    seasonId: ID!
+    date: AWSDate!
+    format: MatchdayFormat!
+    participantIds: [ID!]!
+  ): Matchday! @aws_auth(cognito_groups: ["Admins"])
+
+  generateRound(matchdayId: ID!, round: Int!): [Match!]!
+    @aws_auth(cognito_groups: ["Admins"])
+
+  recordSetResult(
+    matchdayId: ID!
+    round: Int!
+    court: Int!
+    team1Games: Int!
+    team2Games: Int!
+  ): Match! @aws_auth(cognito_groups: ["Admins"])
+
+  closeMatchday(matchdayId: ID!): Matchday!
+    @aws_auth(cognito_groups: ["Admins"])
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}
