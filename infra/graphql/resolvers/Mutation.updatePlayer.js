@@ -3,7 +3,8 @@ import { util } from '@aws-appsync/utils';
 const EDITABLE_FIELDS = ['displayName', 'phone', 'email'];
 
 export function request(ctx) {
-  const { playerId, ...fields } = ctx.args;
+  const playerId = ctx.args.playerId;
+  const fields = ctx.args;
 
   const setClauses = [];
   const expressionNames = {};
