@@ -85,9 +85,15 @@ jobs:
         working-directory: web
         run: npm run build
         env:
-          VITE_APPSYNC_URL: ${{ fromJson(steps.backend-outputs.outputs.json).PoplaBackendStack.ApiUrl }}
-          VITE_USER_POOL_ID: ${{ fromJson(steps.backend-outputs.outputs.json).PoplaBackendStack.UserPoolId }}
-          VITE_USER_POOL_CLIENT_ID: ${{ fromJson(steps.backend-outputs.outputs.json).PoplaBackendStack.UserPoolClientId }}
+          # steps.backend-outputs.outputs.json is empty (not just absent)
+          # when that step was skipped — fromJson('') errors out at
+          # template-evaluation time, which happens for every step's env:
+          # regardless of this step's own `if:`, failing the whole job
+          # before any runtime skip logic applies. The `|| '{}'` fallback
+          # keeps fromJson fed valid JSON in that case.
+          VITE_APPSYNC_URL: ${{ fromJson(steps.backend-outputs.outputs.json || '{}').PoplaBackendStack.ApiUrl }}
+          VITE_USER_POOL_ID: ${{ fromJson(steps.backend-outputs.outputs.json || '{}').PoplaBackendStack.UserPoolId }}
+          VITE_USER_POOL_CLIENT_ID: ${{ fromJson(steps.backend-outputs.outputs.json || '{}').PoplaBackendStack.UserPoolClientId }}
 
       - name: Deploy web stack
         if: steps.check.outputs.configured == 'true'
