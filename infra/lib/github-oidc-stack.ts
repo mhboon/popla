@@ -33,13 +33,20 @@ export class GithubOidcStack extends Stack {
       clientIds: ['sts.amazonaws.com'],
     });
 
+    // GitHub can append immutable owner/repo IDs to the sub claim (e.g.
+    // "repo:owner@123/repo@456:ref:..." instead of "repo:owner/repo:ref:..."),
+    // depending on account-level OIDC settings outside this repo's control.
+    // Wildcard right after the owner/repo names so the trust matches either
+    // form without hardcoding those IDs into committed source.
+    const [githubOwner, githubRepoName] = props.githubRepo.split('/');
+
     const deployRole = new iam.Role(this, 'GithubDeployRole', {
       assumedBy: new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
         StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
         },
         StringLike: {
-          'token.actions.githubusercontent.com:sub': `repo:${props.githubRepo}:ref:refs/heads/main`,
+          'token.actions.githubusercontent.com:sub': `repo:${githubOwner}*/${githubRepoName}*:ref:refs/heads/main`,
         },
       }),
       description: 'Assumed by GitHub Actions to deploy the Popla Cup CDK stacks',
