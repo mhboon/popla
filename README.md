@@ -10,15 +10,31 @@ rules and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the system design.
   web stack.
 - `web/` — frontend (placeholder static page for now).
 - `.github/workflows/deploy.yml` — CI deploy on push to `main`.
+- `.github/workflows/ci.yml` — lint check, required on every PR.
+- `.github/workflows/codeql.yml` — CodeQL security scan, required on
+  every PR (plus a weekly scheduled run).
+- `.github/dependabot.yml` — weekly dependency-update PRs (npm and
+  GitHub Actions), same required checks as any other PR.
 
 ## Local setup
 
 ```bash
 nvm use            # Node LTS, see .nvmrc
-npm install         # installs infra/ via the root workspace
+npm install         # installs infra/ via the root workspace, and wires
+                     # up the pre-commit lint hook (husky) automatically
 cd infra
 npx cdk synth        # sanity-check the app synthesizes
 ```
+
+Linting (`infra/eslint.config.mjs`, TypeScript only — the AppSync JS
+resolvers under `infra/graphql/resolvers/` run in AppSync's own
+restricted runtime and aren't linted here) runs twice, on purpose:
+
+- **Pre-commit**, via husky + lint-staged, against staged files only —
+  fast local feedback, `--fix` applied automatically.
+- **On every PR**, via `ci.yml`, against the full codebase — this is the
+  one branch protection actually requires, so a skipped or bypassed local
+  hook can't slip a lint failure through.
 
 Deploying locally uses whatever AWS credentials are active in your shell
 (`aws configure`, SSO, etc.) — no account ID is stored anywhere in this

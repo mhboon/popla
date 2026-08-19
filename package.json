@@ -7,6 +7,18 @@
   "engines": {
     "node": ">=22"
   },
+  "scripts": {
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "infra/**/*.ts": [
+      "eslint --fix --config infra/eslint.config.mjs"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10"
+  },
   "allowScripts": {
     "esbuild@0.24.2": true
   }
