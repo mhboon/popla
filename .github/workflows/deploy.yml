@@ -35,10 +35,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: infra/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: infra
         run: npm ci
 
       - name: Configure AWS credentials
