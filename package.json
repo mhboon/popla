@@ -20,6 +20,7 @@
     "lint-staged": "^15.2.10"
   },
   "allowScripts": {
-    "esbuild@0.24.2": true
+    "esbuild@0.24.2": true,
+    "esbuild@0.28.2": true
   }
 }
