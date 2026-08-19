@@ -145,6 +145,10 @@ export class PoplaBackendStack extends Stack {
       'StandingsDataSource',
       seasonStandingsTable
     );
+    const matchdayParticipantsDS = api.addDynamoDbDataSource(
+      'MatchdayParticipantsDataSource',
+      matchdayParticipantsTable
+    );
 
     // createMatchday native-transacts across Matchdays + MatchdayParticipants,
     // so its data source needs write access to both tables.
@@ -163,7 +167,9 @@ export class PoplaBackendStack extends Stack {
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'getSeason', file: 'Query.getSeason.js' },
       { dataSource: seasonsDS, typeName: 'Mutation', fieldName: 'createSeason', file: 'Mutation.createSeason.js' },
       { dataSource: seasonsDS, typeName: 'Mutation', fieldName: 'closeSeason', file: 'Mutation.closeSeason.js' },
+      { dataSource: seasonsDS, typeName: 'Mutation', fieldName: 'reopenSeason', file: 'Mutation.reopenSeason.js' },
       { dataSource: matchdaysDS, typeName: 'Query', fieldName: 'getMatchday', file: 'Query.getMatchday.js' },
+      { dataSource: matchdayParticipantsDS, typeName: 'Query', fieldName: 'listMatchdayParticipantIds', file: 'Query.listMatchdayParticipantIds.js' },
       { dataSource: matchdaysDS, typeName: 'Query', fieldName: 'listMatchdaysBySeason', file: 'Query.listMatchdaysBySeason.js' },
       { dataSource: matchdaysDS, typeName: 'Mutation', fieldName: 'createMatchday', file: 'Mutation.createMatchday.js' },
       { dataSource: matchesDS, typeName: 'Query', fieldName: 'listMatches', file: 'Query.listMatches.js' },
@@ -197,7 +203,9 @@ export class PoplaBackendStack extends Stack {
       timeout: Duration.seconds(10),
       environment: lambdaEnv,
     });
-    matchdaysTable.grantReadData(generateRoundFn);
+    // Read-write: also flips status SETUP -> IN_PROGRESS when round 1 is
+    // generated (see infra/lambda/generate-round/index.ts).
+    matchdaysTable.grantReadWriteData(generateRoundFn);
     matchdayParticipantsTable.grantReadData(generateRoundFn);
     matchesTable.grantReadWriteData(generateRoundFn);
 
@@ -235,6 +243,28 @@ export class PoplaBackendStack extends Stack {
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(
         path.join(RESOLVERS_DIR, 'Mutation.closeMatchday.js')
+      ),
+    });
+
+    const updateMatchdayFn = new NodejsFunction(this, 'UpdateMatchdayFn', {
+      entry: path.join(__dirname, '../lambda/update-matchday/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: lambdaEnv,
+    });
+    matchdaysTable.grantReadWriteData(updateMatchdayFn);
+    matchdayParticipantsTable.grantReadWriteData(updateMatchdayFn);
+
+    const updateMatchdayDS = api.addLambdaDataSource(
+      'UpdateMatchdayDataSource',
+      updateMatchdayFn
+    );
+    updateMatchdayDS.createResolver('MutationUpdateMatchdayResolver', {
+      typeName: 'Mutation',
+      fieldName: 'updateMatchday',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.updateMatchday.js')
       ),
     });
 

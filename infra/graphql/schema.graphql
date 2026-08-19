@@ -78,6 +78,7 @@ type Query {
   getSeason(seasonId: ID!): Season
   listMatchdaysBySeason(seasonId: ID!): [Matchday!]!
   getMatchday(matchdayId: ID!): Matchday
+  listMatchdayParticipantIds(matchdayId: ID!): [ID!]!
   listMatches(matchdayId: ID!): [Match!]!
   getMatchdayRanking(matchdayId: ID!): [MatchdayResult!]!
   getSeasonStanding(seasonId: ID!): [SeasonStanding!]!
@@ -100,11 +101,24 @@ type Mutation {
   closeSeason(seasonId: ID!): Season!
     @aws_auth(cognito_groups: ["Admins"])
 
+  reopenSeason(seasonId: ID!): Season!
+    @aws_auth(cognito_groups: ["Admins"])
+
   createMatchday(
     seasonId: ID!
     date: AWSDate!
     format: MatchdayFormat!
     participantIds: [ID!]!
+  ): Matchday! @aws_auth(cognito_groups: ["Admins"])
+
+  # Only allowed while the matchday is still SETUP (before generateRound
+  # has created round 1) — editing date/format/participants after play has
+  # started would leave already-generated Matches inconsistent.
+  updateMatchday(
+    matchdayId: ID!
+    date: AWSDate
+    format: MatchdayFormat
+    participantIds: [ID!]
   ): Matchday! @aws_auth(cognito_groups: ["Admins"])
 
   generateRound(matchdayId: ID!, round: Int!): [Match!]!

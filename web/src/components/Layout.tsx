@@ -15,6 +15,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {user && (
           <nav>
             <Link to="/participants">Participants</Link>
+            <Link to="/seasons">Seasons</Link>
             <Link to="/matchdays/new">New matchday</Link>
             <button
               type="button"

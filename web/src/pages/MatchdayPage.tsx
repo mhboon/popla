@@ -1,8 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
-import { generateRound, getMatchday, listMatches, listPlayers, recordSetResult } from '../lib/api';
-import type { Match, Matchday, Player } from '../types/graphql';
+import {
+  closeMatchday,
+  generateRound,
+  getMatchday,
+  getMatchdayRanking,
+  listMatches,
+  listPlayers,
+  recordSetResult,
+} from '../lib/api';
+import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
 
 const ROUNDS = [1, 2, 3, 4];
 
@@ -14,9 +22,11 @@ export function MatchdayPage() {
   const [matchday, setMatchday] = useState<Matchday | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Map<string, Player>>(new Map());
+  const [ranking, setRanking] = useState<MatchdayResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatingRound, setGeneratingRound] = useState<number | null>(null);
+  const [closing, setClosing] = useState(false);
 
   async function refresh() {
     if (!matchdayId) return;
@@ -30,6 +40,9 @@ export function MatchdayPage() {
       setMatchday(md);
       setMatches(matchList);
       setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
+      if (md?.status === 'CLOSED') {
+        setRanking(await getMatchdayRanking(idToken, matchdayId));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load matchday');
     } finally {
@@ -56,6 +69,20 @@ export function MatchdayPage() {
     }
   }
 
+  async function handleCloseMatchday() {
+    if (!matchdayId) return;
+    setError(null);
+    setClosing(true);
+    try {
+      await closeMatchday(idToken, matchdayId);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to close matchday');
+    } finally {
+      setClosing(false);
+    }
+  }
+
   function playerName(playerId: string): string {
     return players.get(playerId)?.displayName ?? playerId;
   }
@@ -69,14 +96,56 @@ export function MatchdayPage() {
     list.push(match);
     matchesByRound.set(match.round, list);
   }
+  const readyToClose =
+    matchesByRound.size === ROUNDS.length && matches.every((m) => m.status === 'COMPLETE');
 
   return (
     <div>
       <h1>Matchday — {matchday.date}</h1>
       <p>
-        Format: {matchday.format} · Status: {matchday.status}
+        Tournament style: {matchday.format} · Status: {matchday.status}
+        {matchday.status === 'SETUP' && (
+          <>
+            {' · '}
+            <Link to={`/matchdays/${matchday.matchdayId}/edit`}>Edit</Link>
+          </>
+        )}
       </p>
       {error && <p className="form-error">{error}</p>}
+
+      {matchday.status === 'CLOSED' ? (
+        <section>
+          <h2>Ranking</h2>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Sets won</th>
+                <th>Game diff</th>
+                <th>Season points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranking.map((result) => (
+                <tr key={result.playerId}>
+                  <td>{result.rank}</td>
+                  <td>{playerName(result.playerId)}</td>
+                  <td>{result.setsWon}</td>
+                  <td>{result.gameDiff}</td>
+                  <td>{result.seasonPoints}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : (
+        readyToClose && (
+          <button type="button" onClick={handleCloseMatchday} disabled={closing}>
+            {closing ? 'Closing…' : 'Close matchday'}
+          </button>
+        )
+      )}
 
       {ROUNDS.map((round) => {
         const roundMatches = (matchesByRound.get(round) ?? []).sort((a, b) => a.court - b.court);
@@ -84,13 +153,17 @@ export function MatchdayPage() {
           <section key={round}>
             <h2>Round {round}</h2>
             {roundMatches.length === 0 ? (
-              <button
-                type="button"
-                onClick={() => handleGenerateRound(round)}
-                disabled={generatingRound !== null}
-              >
-                {generatingRound === round ? 'Generating…' : `Generate round ${round}`}
-              </button>
+              matchday.status === 'CLOSED' ? (
+                <p>Not played.</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleGenerateRound(round)}
+                  disabled={generatingRound !== null}
+                >
+                  {generatingRound === round ? 'Generating…' : `Generate round ${round}`}
+                </button>
+              )
             ) : (
               <div className="match-grid">
                 {roundMatches.map((match) => (

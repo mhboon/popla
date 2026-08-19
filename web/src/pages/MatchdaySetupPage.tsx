@@ -1,10 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
-import { createMatchday, listPlayers, listSeasons } from '../lib/api';
+import {
+  createMatchday,
+  getMatchday,
+  listMatchdayParticipantIds,
+  listPlayers,
+  listSeasons,
+  updateMatchday,
+} from '../lib/api';
 import type { MatchdayFormat, Player, Season } from '../types/graphql';
 
 export function MatchdaySetupPage() {
+  const { matchdayId } = useParams<{ matchdayId?: string }>();
+  const editing = Boolean(matchdayId);
+
   const { user } = useAuth();
   const idToken = user!.idToken;
   const navigate = useNavigate();
@@ -20,16 +30,32 @@ export function MatchdaySetupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    Promise.all([listPlayers(idToken), listSeasons(idToken)])
-      .then(([playerList, seasons]) => {
+    const loaders: [Promise<Player[]>, Promise<Season[]>] = [listPlayers(idToken), listSeasons(idToken)];
+
+    Promise.all([
+      ...loaders,
+      matchdayId ? getMatchday(idToken, matchdayId) : Promise.resolve(null),
+      matchdayId ? listMatchdayParticipantIds(idToken, matchdayId) : Promise.resolve<string[]>([]),
+    ])
+      .then(([playerList, seasons, matchday, participantIds]) => {
         playerList.sort((a, b) => a.displayName.localeCompare(b.displayName));
         setPlayers(playerList);
         setActiveSeason(seasons.find((s) => s.status === 'ACTIVE') ?? null);
+        if (matchday) {
+          if (matchday.status !== 'SETUP') {
+            setError('This matchday can no longer be edited — round 1 has already been generated.');
+          }
+          setDate(matchday.date);
+          setFormat(matchday.format);
+        }
+        if (participantIds.length > 0) {
+          setSelected(new Set(participantIds));
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load setup data'))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [matchdayId]);
 
   function toggle(playerId: string) {
     setSelected((prev) => {
@@ -45,19 +71,30 @@ export function MatchdaySetupPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!activeSeason || !validCount) return;
+    if (!validCount) return;
     setError(null);
     setSubmitting(true);
     try {
-      const matchday = await createMatchday(idToken, {
-        seasonId: activeSeason.seasonId,
-        date,
-        format,
-        participantIds: [...selected],
-      });
-      navigate(`/matchdays/${matchday.matchdayId}`);
+      if (editing && matchdayId) {
+        await updateMatchday(idToken, {
+          matchdayId,
+          date,
+          format,
+          participantIds: [...selected],
+        });
+        navigate(`/matchdays/${matchdayId}`);
+      } else {
+        if (!activeSeason) return;
+        const matchday = await createMatchday(idToken, {
+          seasonId: activeSeason.seasonId,
+          date,
+          format,
+          participantIds: [...selected],
+        });
+        navigate(`/matchdays/${matchday.matchdayId}`);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create matchday');
+      setError(err instanceof Error ? err.message : 'Failed to save matchday');
     } finally {
       setSubmitting(false);
     }
@@ -65,19 +102,18 @@ export function MatchdaySetupPage() {
 
   if (loading) return <p>Loading…</p>;
 
-  if (!activeSeason) {
+  if (!editing && !activeSeason) {
     return (
       <p className="form-error">
-        No active season found. Create one via the API first (season management UI isn't built
-        yet).
+        No active season found. <a href="/seasons">Start a season</a> first.
       </p>
     );
   }
 
   return (
     <div>
-      <h1>New matchday</h1>
-      <p>Season: {activeSeason.name}</p>
+      <h1>{editing ? 'Edit matchday' : 'New matchday'}</h1>
+      {activeSeason && <p>Season: {activeSeason.name}</p>}
       {error && <p className="form-error">{error}</p>}
 
       <form onSubmit={handleSubmit}>
@@ -87,7 +123,7 @@ export function MatchdaySetupPage() {
         </label>
 
         <fieldset>
-          <legend>Format</legend>
+          <legend>Tournament style</legend>
           <label>
             <input
               type="radio"
@@ -127,7 +163,7 @@ export function MatchdaySetupPage() {
         </fieldset>
 
         <button type="submit" disabled={!validCount || submitting}>
-          {submitting ? 'Creating…' : 'Continue'}
+          {submitting ? 'Saving…' : editing ? 'Save changes' : 'Continue'}
         </button>
       </form>
     </div>

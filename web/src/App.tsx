@@ -5,6 +5,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { ParticipantsPage } from './pages/ParticipantsPage';
+import { SeasonsPage } from './pages/SeasonsPage';
+import { SeasonRankingPage } from './pages/SeasonRankingPage';
 import { MatchdaySetupPage } from './pages/MatchdaySetupPage';
 import { MatchdayPage } from './pages/MatchdayPage';
 
@@ -29,7 +31,31 @@ export function App() {
             }
           />
           <Route
+            path="/seasons"
+            element={
+              <ProtectedRoute>
+                <SeasonsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/seasons/:seasonId/ranking"
+            element={
+              <ProtectedRoute>
+                <SeasonRankingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/matchdays/new"
+            element={
+              <ProtectedRoute>
+                <MatchdaySetupPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/matchdays/:matchdayId/edit"
             element={
               <ProtectedRoute>
                 <MatchdaySetupPage />

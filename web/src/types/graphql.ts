@@ -37,3 +37,21 @@ export interface Match {
   team2Games?: number | null;
   status: MatchStatus;
 }
+
+export interface MatchdayResult {
+  matchdayId: string;
+  playerId: string;
+  setsWon: number;
+  gamesWon: number;
+  gamesLost: number;
+  gameDiff: number;
+  rank: number;
+  seasonPoints: number;
+}
+
+export interface SeasonStanding {
+  seasonId: string;
+  playerId: string;
+  totalPoints: number;
+  matchdaysPlayed: number;
+}

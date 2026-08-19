@@ -111,12 +111,16 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 ## Resolver Split
 
 **Native (AppSync JS resolvers, direct to DynamoDB):**
+- `listPlayers`, `createPlayer`, `updatePlayer` — the latter a dynamic
+  partial-update `SET` expression over whichever fields were provided
 - `getSeason`, `listSeasons`
-- `getMatchday`, `listMatchdaysForSeason`
+- `getMatchday`, `listMatchdaysBySeason`, `listMatchdayParticipantIds`
 - `listMatches(matchdayId, round?)`
 - `getMatchdayRanking(matchdayId)` — Query on `MatchdayResults.byMatchdayRank`
 - `getSeasonStanding(seasonId)` — Query on `SeasonStandings.bySeasonPoints`
-- `createSeason`, `closeSeason` — simple state changes
+- `createSeason`, `closeSeason`, `reopenSeason` — simple state changes.
+  Only one `ACTIVE` season at a time is a UI-enforced convention, not a
+  data-layer constraint — see Open Questions.
 - `createMatchday` — includes participant list; JS resolver validates
   participant count is a non-zero multiple of 4 and the season is `ACTIVE`
 - `recordSetResult(matchId, team1Games, team2Games)` — JS resolver
@@ -130,11 +134,19 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   computed so far — see note below), runs the Mexicano or Americano
   pairing algorithm per `SPEC.md`, batch-writes the `Matches` items for
   that round. Must guard against regenerating an already-played round.
+  Also flips `Matchdays.status` from `SETUP` to `IN_PROGRESS` on round 1,
+  which is what makes the matchday stop being editable.
 - `closeMatchday(matchdayId)` — aggregates all 4 rounds of completed
   `Matches`, computes each player's setsWon/gamesWon/gamesLost/gameDiff/
   rank/seasonPoints, writes `MatchdayResults`, and atomically increments
   `SeasonStandings` in a single DynamoDB transaction. Also flips
   `Matchdays.status` to `CLOSED`.
+- `updateMatchday(matchdayId, date?, format?, participantIds?)` — only
+  allowed while `status == SETUP`. A participant-list change means
+  reading the current `MatchdayParticipants`, diffing against the new
+  list, and writing the add/remove set in one transaction alongside the
+  `Matchdays` update — real enough logic to warrant Lambda over a native
+  resolver, unlike `createMatchday`'s simpler "write everything" case.
 
 Note: Mexicano's round-over-round re-ranking (round 2, 3, 4 pairing
 depends on the running standings *within that matchday*, not just the
@@ -192,7 +204,9 @@ Splitting this way means a frontend-only change can redeploy
   `MatchdayResults`/`SeasonStandings` plus a small addition to
   `closeMatchday`'s computation; not expected to change the overall
   architecture.
-- Season management UI (create/close a season) — no screen yet; the
-  matchday setup screen assumes an `ACTIVE` season already exists.
-- Matchday ranking, season standings, and close-matchday screens — no UI
-  yet, though the underlying queries/mutations already exist.
+- Concurrent admins could both create/reopen a season at the same moment
+  and end up with two `ACTIVE` seasons — the "only one active season"
+  invariant is enforced client-side (disabled buttons) in `SeasonsPage`,
+  not at the data layer. Acceptable for a single-admin-at-a-time club
+  tool; would need a real check (e.g. a Lambda resolver) if that stops
+  being true.
