@@ -72,7 +72,13 @@ type SeasonStanding {
   matchdaysPlayed: Int!
 }
 
-type Query {
+# Phase 1 is admin-only end to end (see SPEC.md) — every query returns
+# data (participant phone/email included) that shouldn't be readable by
+# a non-admin Cognito identity once phase 2 adds participant login.
+# Applying the directive at the type level, rather than repeating it on
+# each field the way Mutation does, means a query added later is
+# admin-only by default instead of by remembering to annotate it.
+type Query @aws_auth(cognito_groups: ["Admins"]) {
   listPlayers: [Player!]!
   listSeasons: [Season!]!
   getSeason(seasonId: ID!): Season
