@@ -3,54 +3,30 @@
 Companion to `SPEC.md`. Describes the target AWS serverless architecture and
 the CDK/CI setup that deploys it.
 
-A more polished, hand-laid-out version of the two diagrams below (same
-content) is also published as an artifact for quick reference.
-
 ## Diagrams
 
-### Request path
+AWS architecture diagrams, drawn with official AWS4 icons, live in
+[`docs/`](docs/) as draw.io files — open them in
+[diagrams.net](https://app.diagrams.net), the draw.io desktop app, or the
+VS Code draw.io extension:
 
-```mermaid
-flowchart LR
-    Browser["Browser / mobile\n(responsive SPA)"]
-    CF["CloudFront"]
-    S3[("S3\nstatic assets")]
-    Cognito["Cognito User Pool\nAdmins group"]
-    AppSync["AppSync GraphQL API\nCognito User Pool auth"]
-    Lambda["Lambda\ngenerateRound / closeMatchday"]
-    DDB[("DynamoDB · 7 tables\nPlayers, Seasons, Matchdays,\nMatchdayParticipants, Matches,\nMatchdayResults, SeasonStandings")]
-
-    Browser -->|HTTPS, app shell| CF --> S3
-    Browser -->|sign in| Cognito
-    Browser -->|GraphQL + JWT| AppSync
-    Cognito -.->|verifies JWT / group| AppSync
-    AppSync -->|native JS resolvers, 13 fields| DDB
-    AppSync -->|2 mutations| Lambda --> DDB
-```
-
-Reads and most writes are resolved **natively** — an AppSync JS resolver
-talks straight to DynamoDB, no compute in between. Only the two mutations
-with real algorithmic content — `generateRound` (Mexicano/Americano
-pairing) and `closeMatchday` (scoring, ranking, season-points transaction)
-— take the extra hop through Lambda before reaching the same tables.
-
-### Deploy path
-
-```mermaid
-flowchart LR
-    PR["PR merged\n→ main"] --> GA["GitHub Actions\nrunner"]
-    GA -->|OIDC token, no stored keys| STS["AWS STS\ntoken exchange"]
-    STS -->|AssumeRoleWithWebIdentity| Role["IAM deploy role\nARN: GitHub secret only"]
-    Role -->|cdk deploy| CFN["CloudFormation"]
-    CFN --> Backend["PoplaBackendStack\nDynamoDB, Cognito, AppSync"]
-    CFN --> Web["PoplaWebStack\nS3, CloudFront"]
-```
-
-CI proves its identity to AWS with a short-lived OIDC token, never a
-stored access key. The one account-specific value in this whole flow —
-the deploy role's ARN — exists solely as the `AWS_DEPLOY_ROLE_ARN` GitHub
-secret, which is why it never surfaces in source or in this repo's
-Actions logs, even though `cdk deploy` itself prints ARNs that contain it.
+- [`docs/popla-request-path.drawio`](docs/popla-request-path.drawio) —
+  browser → CloudFront/S3 and browser → AppSync, with the native-vs-Lambda
+  resolver split front and center: reads and most writes resolve
+  **natively** (an AppSync JS resolver straight to DynamoDB, no compute in
+  between); only `generateRound` (Mexicano/Americano pairing) and
+  `closeMatchday` (scoring, ranking, season-points transaction) — the two
+  mutations with real algorithmic content — detour through Lambda before
+  reaching the same tables.
+- [`docs/popla-deploy-path.drawio`](docs/popla-deploy-path.drawio) — how a
+  merged PR reaches AWS: GitHub Actions exchanges a short-lived OIDC token
+  with AWS STS to assume an IAM deploy role (no stored AWS keys), then
+  runs `cdk deploy` against CloudFormation to update `PoplaBackendStack`
+  and `PoplaWebStack`. The one account-specific value in that whole flow —
+  the deploy role's ARN — exists solely as the `AWS_DEPLOY_ROLE_ARN`
+  GitHub secret, which is why it never surfaces in source or in this
+  repo's Actions logs, even though `cdk deploy` itself prints ARNs that
+  contain it.
 
 ## Stack Overview
 
