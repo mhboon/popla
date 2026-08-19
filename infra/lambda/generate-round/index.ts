@@ -4,6 +4,7 @@ import {
   GetCommand,
   QueryCommand,
   BatchWriteCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { courtsFromOrderedPlayers, randomOrder } from '../shared/pairing';
 
@@ -84,6 +85,20 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
       },
     })
   );
+
+  // Round 1 generated: the matchday is no longer editable (updateMatchday
+  // only allows SETUP) and is now actually being played.
+  if (round === 1 && matchday.status === 'SETUP') {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: MATCHDAYS_TABLE,
+        Key: { matchdayId },
+        UpdateExpression: 'SET #status = :inProgress',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':inProgress': 'IN_PROGRESS' },
+      })
+    );
+  }
 
   return courts.map((c) => ({
     matchdayId,

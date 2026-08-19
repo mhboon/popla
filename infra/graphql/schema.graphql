@@ -22,6 +22,7 @@ enum MatchStatus {
 type Player {
   playerId: ID!
   displayName: String!
+  phone: String
   email: String
   createdAt: AWSDateTime!
 }
@@ -71,20 +72,34 @@ type SeasonStanding {
   matchdaysPlayed: Int!
 }
 
-type Query {
+# Phase 1 is admin-only end to end (see SPEC.md) — every query returns
+# data (participant phone/email included) that shouldn't be readable by
+# a non-admin Cognito identity once phase 2 adds participant login.
+# Applying the directive at the type level, rather than repeating it on
+# each field the way Mutation does, means a query added later is
+# admin-only by default instead of by remembering to annotate it.
+type Query @aws_auth(cognito_groups: ["Admins"]) {
   listPlayers: [Player!]!
   listSeasons: [Season!]!
   getSeason(seasonId: ID!): Season
   listMatchdaysBySeason(seasonId: ID!): [Matchday!]!
   getMatchday(matchdayId: ID!): Matchday
+  listMatchdayParticipantIds(matchdayId: ID!): [ID!]!
   listMatches(matchdayId: ID!): [Match!]!
   getMatchdayRanking(matchdayId: ID!): [MatchdayResult!]!
   getSeasonStanding(seasonId: ID!): [SeasonStanding!]!
 }
 
 type Mutation {
-  createPlayer(displayName: String!, email: String): Player!
+  createPlayer(displayName: String!, phone: String, email: String): Player!
     @aws_auth(cognito_groups: ["Admins"])
+
+  updatePlayer(
+    playerId: ID!
+    displayName: String
+    phone: String
+    email: String
+  ): Player! @aws_auth(cognito_groups: ["Admins"])
 
   createSeason(name: String!, startDate: AWSDate!): Season!
     @aws_auth(cognito_groups: ["Admins"])
@@ -92,11 +107,24 @@ type Mutation {
   closeSeason(seasonId: ID!): Season!
     @aws_auth(cognito_groups: ["Admins"])
 
+  reopenSeason(seasonId: ID!): Season!
+    @aws_auth(cognito_groups: ["Admins"])
+
   createMatchday(
     seasonId: ID!
     date: AWSDate!
     format: MatchdayFormat!
     participantIds: [ID!]!
+  ): Matchday! @aws_auth(cognito_groups: ["Admins"])
+
+  # Only allowed while the matchday is still SETUP (before generateRound
+  # has created round 1) — editing date/format/participants after play has
+  # started would leave already-generated Matches inconsistent.
+  updateMatchday(
+    matchdayId: ID!
+    date: AWSDate
+    format: MatchdayFormat
+    participantIds: [ID!]
   ): Matchday! @aws_auth(cognito_groups: ["Admins"])
 
   generateRound(matchdayId: ID!, round: Int!): [Match!]!

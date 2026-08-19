@@ -14,9 +14,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -25,6 +25,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Lint infra
         working-directory: infra
         run: npm run lint
+
+      - name: Build infra
+        working-directory: infra
+        run: npm run build
+
+      - name: Lint web
+        working-directory: web
+        run: npm run lint
+
+      # No VITE_* env vars needed to catch type errors / bundling issues —
+      # see web/src/lib/config.ts, which only reads them at runtime.
+      - name: Build web
+        working-directory: web
+        run: npm run build
