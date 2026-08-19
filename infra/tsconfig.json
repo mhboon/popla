@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
+    "module": "node16",
     "lib": ["ES2022"],
     "declaration": false,
     "strict": true,
@@ -19,7 +19,8 @@
     "strictPropertyInitialization": false,
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node16",
+    "types": ["node"]
   },
   "exclude": ["node_modules", "cdk.out", "web"]
 }
