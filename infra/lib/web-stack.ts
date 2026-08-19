@@ -28,11 +28,12 @@ export class PoplaWebStack extends Stack {
       ],
     });
 
-    // Placeholder site content until the real frontend build replaces
-    // web/public. No custom domain yet — served from the default
+    // Deploys the Vite build output — `npm run build` in web/ must run
+    // before `cdk deploy` (see .github/workflows/deploy.yml and
+    // README.md). No custom domain yet — served from the default
     // CloudFront domain.
     new s3deploy.BucketDeployment(this, 'DeploySite', {
-      sources: [s3deploy.Source.asset(path.join(__dirname, '../../web/public'))],
+      sources: [s3deploy.Source.asset(path.join(__dirname, '../../web/dist'))],
       destinationBucket: siteBucket,
       distribution,
       distributionPaths: ['/*'],

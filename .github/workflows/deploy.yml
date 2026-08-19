@@ -69,7 +69,25 @@ jobs:
       - name: Deploy backend stack
         if: steps.check.outputs.configured == 'true'
         working-directory: infra
-        run: npx cdk deploy PoplaBackendStack --require-approval never
+        run: npx cdk deploy PoplaBackendStack --require-approval never --outputs-file cdk-outputs.json
+
+      - name: Read backend outputs
+        if: steps.check.outputs.configured == 'true'
+        id: backend-outputs
+        working-directory: infra
+        run: echo "json=$(jq -c . cdk-outputs.json)" >> "$GITHUB_OUTPUT"
+
+      # Bakes the backend's AppSync/Cognito endpoints into the static
+      # bundle at build time (see web/src/lib/config.ts) — none of these
+      # values are account-specific (see infra/lib/backend-stack.ts).
+      - name: Build frontend
+        if: steps.check.outputs.configured == 'true'
+        working-directory: web
+        run: npm run build
+        env:
+          VITE_APPSYNC_URL: ${{ fromJson(steps.backend-outputs.outputs.json).PoplaBackendStack.ApiUrl }}
+          VITE_USER_POOL_ID: ${{ fromJson(steps.backend-outputs.outputs.json).PoplaBackendStack.UserPoolId }}
+          VITE_USER_POOL_CLIENT_ID: ${{ fromJson(steps.backend-outputs.outputs.json).PoplaBackendStack.UserPoolClientId }}
 
       - name: Deploy web stack
         if: steps.check.outputs.configured == 'true'

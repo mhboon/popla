@@ -8,7 +8,9 @@ rules and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the system design.
 - `infra/` — AWS CDK app (TypeScript): DynamoDB tables, Cognito, AppSync
   API (native JS resolvers + two Lambda resolvers), and the S3/CloudFront
   web stack.
-- `web/` — frontend (placeholder static page for now).
+- `web/` — admin frontend: React + Vite + TypeScript, plain `fetch`-based
+  GraphQL client (no Apollo — the API surface is small), Cognito login via
+  `amazon-cognito-identity-js`.
 - `.github/workflows/deploy.yml` — CI deploy on push to `main`.
 - `.github/workflows/ci.yml` — lint check, required on every PR.
 - `.github/workflows/codeql.yml` — CodeQL security scan, required on
@@ -45,6 +47,26 @@ cd infra
 npx cdk bootstrap    # once per account/region
 npx cdk deploy PoplaBackendStack
 npx cdk deploy PoplaWebStack
+```
+
+### Frontend dev server
+
+The frontend needs the deployed backend's AppSync/Cognito endpoints at
+build time (baked into the static bundle — see `web/src/lib/config.ts`,
+which fails fast with a clear error if they're missing). None of these
+values are account-specific.
+
+```bash
+cd infra && npx cdk deploy PoplaBackendStack --outputs-file cdk-outputs.json
+```
+
+Copy the `ApiUrl`, `UserPoolId`, and `UserPoolClientId` from
+`infra/cdk-outputs.json` into `web/.env.local` (copy from
+`web/.env.example` first — `.env.local` is gitignored), then:
+
+```bash
+cd web
+npm run dev
 ```
 
 ## CI/CD setup (one-time)

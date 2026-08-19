@@ -25,6 +25,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Lint infra
         working-directory: infra
         run: npm run lint
+
+      - name: Build infra
+        working-directory: infra
+        run: npm run build
+
+      - name: Lint web
+        working-directory: web
+        run: npm run lint
+
+      # No VITE_* env vars needed to catch type errors / bundling issues —
+      # see web/src/lib/config.ts, which only reads them at runtime.
+      - name: Build web
+        working-directory: web
+        run: npm run build

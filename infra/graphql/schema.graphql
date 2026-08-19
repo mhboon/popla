@@ -22,6 +22,7 @@ enum MatchStatus {
 type Player {
   playerId: ID!
   displayName: String!
+  phone: String
   email: String
   createdAt: AWSDateTime!
 }
@@ -83,8 +84,15 @@ type Query {
 }
 
 type Mutation {
-  createPlayer(displayName: String!, email: String): Player!
+  createPlayer(displayName: String!, phone: String, email: String): Player!
     @aws_auth(cognito_groups: ["Admins"])
+
+  updatePlayer(
+    playerId: ID!
+    displayName: String
+    phone: String
+    email: String
+  ): Player! @aws_auth(cognito_groups: ["Admins"])
 
   createSeason(name: String!, startDate: AWSDate!): Season!
     @aws_auth(cognito_groups: ["Admins"])

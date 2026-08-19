@@ -2,7 +2,8 @@
   "name": "popla",
   "private": true,
   "workspaces": [
-    "infra"
+    "infra",
+    "web"
   ],
   "engines": {
     "node": ">=22"
@@ -13,6 +14,9 @@
   "lint-staged": {
     "infra/**/*.ts": [
       "eslint --fix --config infra/eslint.config.mjs"
+    ],
+    "web/**/*.{ts,tsx}": [
+      "eslint --fix --config web/eslint.config.mjs"
     ]
   },
   "devDependencies": {
@@ -20,7 +24,7 @@
     "lint-staged": "^17.3.0"
   },
   "allowScripts": {
-    "esbuild@0.24.2": true,
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true
   }
 }

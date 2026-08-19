@@ -5,6 +5,7 @@ export function request(ctx) {
   ctx.stash.newItem = {
     playerId,
     displayName: ctx.args.displayName,
+    phone: ctx.args.phone,
     email: ctx.args.email,
     createdAt: util.time.nowISO8601(),
   };

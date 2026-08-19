@@ -30,6 +30,13 @@ VS Code draw.io extension:
 
 ## Stack Overview
 
+- **Frontend:** React + Vite + TypeScript (`web/`). A plain `fetch`-based
+  GraphQL client rather than Apollo/Amplify — the API surface is small
+  enough that a full client library isn't worth the dependency weight.
+  Cognito auth via `amazon-cognito-identity-js` (SRP, matching the User
+  Pool client's `authFlows: { userSrp: true }`), including the
+  `newPasswordRequired` challenge admins hit on first sign-in after
+  `admin-create-user`.
 - **Frontend hosting:** S3 (private, Origin Access Control) + CloudFront.
 - **API:** AWS AppSync (GraphQL), Cognito User Pool authorizer.
 - **Business logic:** AppSync JS (native) resolvers to DynamoDB for CRUD/
@@ -185,4 +192,7 @@ Splitting this way means a frontend-only change can redeploy
   `MatchdayResults`/`SeasonStandings` plus a small addition to
   `closeMatchday`'s computation; not expected to change the overall
   architecture.
-- Frontend framework/tooling choice — not yet decided.
+- Season management UI (create/close a season) — no screen yet; the
+  matchday setup screen assumes an `ACTIVE` season already exists.
+- Matchday ranking, season standings, and close-matchday screens — no UI
+  yet, though the underlying queries/mutations already exist.

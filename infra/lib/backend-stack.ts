@@ -158,6 +158,7 @@ export class PoplaBackendStack extends Stack {
     }> = [
       { dataSource: playersDS, typeName: 'Query', fieldName: 'listPlayers', file: 'Query.listPlayers.js' },
       { dataSource: playersDS, typeName: 'Mutation', fieldName: 'createPlayer', file: 'Mutation.createPlayer.js' },
+      { dataSource: playersDS, typeName: 'Mutation', fieldName: 'updatePlayer', file: 'Mutation.updatePlayer.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'listSeasons', file: 'Query.listSeasons.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'getSeason', file: 'Query.getSeason.js' },
       { dataSource: seasonsDS, typeName: 'Mutation', fieldName: 'createSeason', file: 'Mutation.createSeason.js' },
