@@ -1,0 +1,30 @@
+# PR validation. Runs the same lint check as the pre-commit hook, so a
+# skipped or bypassed local hook can't slip through — this is the one
+# that's actually required by branch protection.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        working-directory: infra
+        run: npm run lint
