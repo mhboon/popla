@@ -1,0 +1,27 @@
+# Dependabot version updates open PRs automatically on the configured
+# schedule — that's its normal behavior, not an opt-in "auto-PR" mode.
+# They still go through the same PR-only, checks-required path as any
+# other change (lint + CodeQL must pass; nothing auto-merges).
+version: 2
+updates:
+  # npm workspaces: a single root entry covers both the root package.json
+  # and the infra/ workspace member, since the lockfile lives at the repo
+  # root (see infra/package.json for the workspace itself).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

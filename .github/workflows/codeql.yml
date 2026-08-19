@@ -1,0 +1,41 @@
+# Static analysis security scan. Runs on every PR into main (plus a
+# weekly scheduled scan to catch newly-disclosed query patterns against
+# unchanged code) and is wired into branch protection as a required
+# status check, so a PR can't merge while it's failing.
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 1" # weekly, Monday 04:23 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript-typescript"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - uses: github/codeql-action/autobuild@v3
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
