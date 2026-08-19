@@ -29,27 +29,49 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # AWS_DEPLOY_ROLE_ARN / AWS_REGION only exist once the one-time OIDC
+      # bootstrap in README.md has been done (see infra/lib/github-oidc-stack.ts).
+      # Until then, every later step is skipped rather than failing the
+      # job — this is expected on a fresh clone/fork, not a broken pipeline.
+      - name: Check AWS deploy configuration
+        id: check
+        run: |
+          if [ -n "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ] && [ -n "${{ vars.AWS_REGION }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            MSG="AWS_DEPLOY_ROLE_ARN secret and/or AWS_REGION variable are not set — skipping deploy. See README.md's 'CI/CD setup (one-time)' section."
+            echo "::notice::$MSG"
+            echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        if: steps.check.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v7
+        if: steps.check.outputs.configured == 'true'
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
         run: npm ci
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        if: steps.check.outputs.configured == 'true'
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Deploy backend stack
+        if: steps.check.outputs.configured == 'true'
         working-directory: infra
         run: npx cdk deploy PoplaBackendStack --require-approval never
 
       - name: Deploy web stack
+        if: steps.check.outputs.configured == 'true'
         working-directory: infra
         run: npx cdk deploy PoplaWebStack --require-approval never
