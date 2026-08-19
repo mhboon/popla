@@ -17,7 +17,8 @@ VS Code draw.io extension:
   between); only `generateRound` (Mexicano/Americano pairing) and
   `closeMatchday` (scoring, ranking, season-points transaction) — the two
   mutations with real algorithmic content — detour through Lambda before
-  reaching the same tables.
+  reaching the same tables. Rendered:
+  ![Request path diagram](docs/popla-request-path.png)
 - [`docs/popla-deploy-path.drawio`](docs/popla-deploy-path.drawio) — how a
   merged PR reaches AWS: GitHub Actions exchanges a short-lived OIDC token
   with AWS STS to assume an IAM deploy role (no stored AWS keys), then
@@ -26,7 +27,13 @@ VS Code draw.io extension:
   the deploy role's ARN — exists solely as the `AWS_DEPLOY_ROLE_ARN`
   GitHub secret, which is why it never surfaces in source or in this
   repo's Actions logs, even though `cdk deploy` itself prints ARNs that
-  contain it.
+  contain it. Rendered:
+  ![Deploy path diagram](docs/popla-deploy-path.png)
+
+Rendered PNGs are checked in so the diagrams show up inline on GitHub
+(which doesn't render `.drawio` XML); regenerate them from the source
+files whenever the diagrams change, since nothing enforces they stay in
+sync automatically.
 
 ## Stack Overview
 
