@@ -102,13 +102,31 @@ From here on, every push to `main` runs `.github/workflows/deploy.yml`.
 
 ## Admin users
 
-Phase 1 has no self-signup. Create the first admin manually:
+Phase 1 has no self-signup. Create the first admin manually. The User
+Pool uses `email` as a sign-in *alias*, not as the username itself, so
+pick a friendly `--username` (what you'll actually type to sign in) and
+pass the real email address as an attribute (needed for password
+recovery and Cognito's required-attribute check):
 
 ```bash
-aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username <email>
+aws cognito-idp admin-create-user --user-pool-id <UserPoolId> \
+  --username <friendly-username> \
+  --user-attributes Name=email,Value=<email> Name=email_verified,Value=true
 aws cognito-idp admin-add-user-to-group --user-pool-id <UserPoolId> \
-  --username <email> --group-name Admins
+  --username <friendly-username> --group-name Admins
 ```
 
 (`UserPoolId` is printed as a stack output after deploying
 `PoplaBackendStack`.)
+
+Note: the User Pool used to be configured with email as the *username*
+itself (`UsernameAttributes`), which made Cognito silently generate a
+random technical username and accept only email at sign-in. It's now
+`AliasAttributes` instead, which is what makes the friendly `--username`
+above possible — but that setting is immutable on an existing pool, so
+switching to it replaces the pool. If you're upgrading an existing
+deployment, every existing user (including any admin you already
+created) needs to be recreated with the command above after this
+deploys; the old pool is retained (not deleted) by CDK, so nothing is
+lost, but it becomes orphaned and can be deleted manually via the
+console/CLI once you've confirmed the new one works.

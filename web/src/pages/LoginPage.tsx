@@ -76,9 +76,9 @@ export function LoginPage() {
     <form onSubmit={handleLogin} className="auth-form">
       <h1>Sign in</h1>
       <label>
-        Email
+        Username
         <input
-          type="email"
+          type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoComplete="username"

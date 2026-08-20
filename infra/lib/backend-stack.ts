@@ -96,7 +96,14 @@ export class PoplaBackendStack extends Stack {
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'popla-users',
       selfSignUpEnabled: false,
-      signInAliases: { email: true },
+      // `username: true` alongside `email: true` puts Cognito in
+      // AliasAttributes mode instead of UsernameAttributes mode — that's
+      // what lets admin-create-user set a real, friendly Username
+      // instead of Cognito silently generating a random GUID and only
+      // accepting email as the sign-in alias. This is immutable on an
+      // existing pool (changing it replaces the pool), so existing users
+      // need recreating after this deploys — see README.md.
+      signInAliases: { username: true, email: true },
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
