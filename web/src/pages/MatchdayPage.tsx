@@ -12,6 +12,7 @@ import {
 } from '../lib/api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { assignCompetitionRank } from '../lib/ranking';
+import { formatMatchdayWhen } from '../lib/matchday';
 import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
 
 // A set is played to 6 games with no tiebreak (SPEC.md) — 0-6 is the full
@@ -156,7 +157,7 @@ export function MatchdayPage() {
 
   return (
     <div>
-      <h1>Matchday — {matchday.date}</h1>
+      <h1>Matchday — {formatMatchdayWhen(matchday)}</h1>
       <p>
         Tournament style: {matchday.format} ·{' '}
         <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
