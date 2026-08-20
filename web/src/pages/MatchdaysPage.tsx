@@ -1,72 +1,116 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
-import { getSeason, listMatchdaysBySeason } from '../lib/api';
+import { listMatchdaysBySeason, listSeasons } from '../lib/api';
 import type { Matchday, Season } from '../types/graphql';
 
 export function MatchdaysPage() {
-  const { seasonId } = useParams<{ seasonId: string }>();
   const { user } = useAuth();
   const idToken = user!.idToken;
 
-  const [season, setSeason] = useState<Season | null>(null);
+  const [seasons, setSeasons] = useState<Season[]>([]);
   const [matchdays, setMatchdays] = useState<Matchday[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!seasonId) return;
-    Promise.all([getSeason(idToken, seasonId), listMatchdaysBySeason(idToken, seasonId)])
-      .then(([s, matchdayList]) => {
-        setSeason(s);
-        setMatchdays([...matchdayList].sort((a, b) => b.date.localeCompare(a.date)));
+    listSeasons(idToken)
+      .then(async (seasonList) => {
+        setSeasons(seasonList);
+        const bySeasonId = await Promise.all(
+          seasonList.map((s) => listMatchdaysBySeason(idToken, s.seasonId))
+        );
+        setMatchdays(bySeasonId.flat());
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load matchdays'))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seasonId]);
+  }, []);
+
+  function seasonName(seasonId: string): string {
+    return seasons.find((s) => s.seasonId === seasonId)?.name ?? seasonId;
+  }
 
   if (loading) return <p>Loading…</p>;
   if (error) return <p className="form-error">{error}</p>;
-  if (!season) return <p className="form-error">Season not found.</p>;
+
+  const active = matchdays
+    .filter((m) => m.status !== 'CLOSED')
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const history = matchdays
+    .filter((m) => m.status === 'CLOSED')
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const activeSeason = seasons.find((s) => s.status === 'ACTIVE');
 
   return (
     <div>
-      <h1>{season.name} — matchdays</h1>
-      {matchdays.length === 0 ? (
-        <p>No matchdays yet in this season.</p>
-      ) : (
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Format</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {matchdays.map((matchday) => (
-                <tr key={matchday.matchdayId}>
-                  <td>{matchday.date}</td>
-                  <td>{matchday.format}</td>
-                  <td>
-                    <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
-                      {matchday.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td>
-                    <Link to={`/matchdays/${matchday.matchdayId}`}>
-                      {matchday.status === 'CLOSED' ? 'View' : 'Open'}
-                    </Link>
-                  </td>
+      <h1>Matchdays</h1>
+
+      <div className="page-actions">
+        {activeSeason ? (
+          <Link to="/matchdays/new" className="button-primary">
+            New matchday
+          </Link>
+        ) : (
+          <p>
+            No active season — <Link to="/seasons">start one</Link> first.
+          </p>
+        )}
+      </div>
+
+      <section>
+        <h2>Active matchdays</h2>
+        {active.length === 0 ? (
+          <p>No matchday in progress right now.</p>
+        ) : (
+          <ul className="matchday-list">
+            {active.map((matchday) => (
+              <li key={matchday.matchdayId}>
+                <Link to={`/matchdays/${matchday.matchdayId}`}>
+                  <span className="matchday-list-season">{seasonName(matchday.seasonId)}</span>
+                  <span className="matchday-list-date">{matchday.date}</span>
+                  <span>{matchday.format}</span>
+                  <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
+                    {matchday.status.replace('_', ' ')}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2>History</h2>
+        {history.length === 0 ? (
+          <p>No matchdays closed yet.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Season</th>
+                  <th>Date</th>
+                  <th>Format</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {history.map((matchday) => (
+                  <tr key={matchday.matchdayId}>
+                    <td>{seasonName(matchday.seasonId)}</td>
+                    <td>{matchday.date}</td>
+                    <td>{matchday.format}</td>
+                    <td>
+                      <Link to={`/matchdays/${matchday.matchdayId}`}>View</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

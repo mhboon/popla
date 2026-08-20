@@ -13,6 +13,10 @@ import {
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
 
+// A set is played to 6 games with no tiebreak (SPEC.md) — 0-6 is the full
+// valid range for either team's game count.
+const GAME_SCORES = [0, 1, 2, 3, 4, 5, 6];
+
 export function MatchdayPage() {
   const { matchdayId } = useParams<{ matchdayId: string }>();
   const { user } = useAuth();
@@ -271,23 +275,29 @@ function MatchCard({
 
       {editing ? (
         <form onSubmit={handleSave} className="score-form">
-          <input
-            type="number"
-            min={0}
-            max={6}
+          <select
+            className="score-select"
             value={team1Games}
             onChange={(e) => setTeam1Games(Number(e.target.value))}
-            required
-          />
+          >
+            {GAME_SCORES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
           <span>–</span>
-          <input
-            type="number"
-            min={0}
-            max={6}
+          <select
+            className="score-select"
             value={team2Games}
             onChange={(e) => setTeam2Games(Number(e.target.value))}
-            required
-          />
+          >
+            {GAME_SCORES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
           <button type="submit" className="button-primary" disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </button>

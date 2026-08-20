@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import {
   createMatchday,
+  createPlayer,
   getMatchday,
   listMatchdayParticipantIds,
   listPlayers,
@@ -10,6 +11,7 @@ import {
   updateMatchday,
 } from '../lib/api';
 import { sortByName } from '../lib/sort';
+import { PlayerMultiSelect } from '../components/PlayerMultiSelect';
 import type { MatchdayFormat, Player, Season } from '../types/graphql';
 
 export function MatchdaySetupPage() {
@@ -29,6 +31,12 @@ export function MatchdaySetupPage() {
   const [format, setFormat] = useState<MatchdayFormat>('MEXICANO');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+
+  const [addingPlayer, setAddingPlayer] = useState(false);
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [newPlayerPhone, setNewPlayerPhone] = useState('');
+  const [newPlayerEmail, setNewPlayerEmail] = useState('');
+  const [creatingPlayer, setCreatingPlayer] = useState(false);
 
   useEffect(() => {
     const loaders: [Promise<Player[]>, Promise<Season[]>] = [listPlayers(idToken), listSeasons(idToken)];
@@ -68,6 +76,29 @@ export function MatchdaySetupPage() {
 
   const count = selected.size;
   const validCount = count > 0 && count % 4 === 0;
+
+  async function handleAddPlayer(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setCreatingPlayer(true);
+    try {
+      const player = await createPlayer(idToken, {
+        displayName: newPlayerName,
+        phone: newPlayerPhone || undefined,
+        email: newPlayerEmail || undefined,
+      });
+      setPlayers((prev) => sortByName([...prev, player]));
+      setSelected((prev) => new Set(prev).add(player.playerId));
+      setNewPlayerName('');
+      setNewPlayerPhone('');
+      setNewPlayerEmail('');
+      setAddingPlayer(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add participant');
+    } finally {
+      setCreatingPlayer(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -122,27 +153,13 @@ export function MatchdaySetupPage() {
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </label>
 
-        <fieldset>
-          <legend>Tournament style</legend>
-          <label>
-            <input
-              type="radio"
-              name="format"
-              checked={format === 'MEXICANO'}
-              onChange={() => setFormat('MEXICANO')}
-            />
-            Mexicano
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="format"
-              checked={format === 'AMERICANO'}
-              onChange={() => setFormat('AMERICANO')}
-            />
-            Americano
-          </label>
-        </fieldset>
+        <label>
+          Tournament style
+          <select value={format} onChange={(e) => setFormat(e.target.value as MatchdayFormat)}>
+            <option value="MEXICANO">Mexicano</option>
+            <option value="AMERICANO">Americano</option>
+          </select>
+        </label>
 
         <fieldset>
           <legend>Participants</legend>
@@ -150,24 +167,47 @@ export function MatchdaySetupPage() {
             <span className="scoreboard-chip">{count}</span>
             {validCount ? ' selected' : ' selected — must be a multiple of 4'}
           </p>
-          <div className="participant-grid">
-            {players.map((player) => {
-              const isSelected = selected.has(player.playerId);
-              return (
-                <label
-                  key={player.playerId}
-                  className={`participant-chip${isSelected ? ' participant-chip-selected' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggle(player.playerId)}
-                  />
-                  {player.displayName}
-                </label>
-              );
-            })}
-          </div>
+          <PlayerMultiSelect players={players} selected={selected} onToggle={toggle} />
+
+          {addingPlayer ? (
+            <form onSubmit={handleAddPlayer} className="inline-form">
+              <label>
+                Name
+                <input
+                  type="text"
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Phone (optional)
+                <input
+                  type="text"
+                  value={newPlayerPhone}
+                  onChange={(e) => setNewPlayerPhone(e.target.value)}
+                />
+              </label>
+              <label>
+                Email (optional)
+                <input
+                  type="email"
+                  value={newPlayerEmail}
+                  onChange={(e) => setNewPlayerEmail(e.target.value)}
+                />
+              </label>
+              <button type="submit" className="button-primary" disabled={creatingPlayer}>
+                {creatingPlayer ? 'Adding…' : 'Add participant'}
+              </button>
+              <button type="button" onClick={() => setAddingPlayer(false)}>
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setAddingPlayer(true)}>
+              + New participant
+            </button>
+          )}
         </fieldset>
 
         <button type="submit" className="button-primary" disabled={!validCount || submitting}>

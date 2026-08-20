@@ -136,7 +136,6 @@ export function SeasonsPage() {
                     </td>
                     <td>{season.startDate}</td>
                     <td>
-                      <Link to={`/seasons/${season.seasonId}/matchdays`}>Matchdays</Link>{' '}
                       <Link to={`/seasons/${season.seasonId}/ranking`}>Ranking</Link>{' '}
                       {season.status === 'ACTIVE' && (
                         <button

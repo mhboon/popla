@@ -48,7 +48,7 @@ export function App() {
             }
           />
           <Route
-            path="/seasons/:seasonId/matchdays"
+            path="/matchdays"
             element={
               <ProtectedRoute>
                 <MatchdaysPage />

@@ -142,16 +142,6 @@ a {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.nav-current-matchday {
-  background: var(--color-ball) !important;
-  color: var(--color-court-deep) !important;
-}
-
-.nav-current-matchday:hover {
-  background: var(--color-ball) !important;
-  filter: brightness(1.05);
-}
-
 .app-main {
   flex: 1;
   padding: var(--space-5) var(--space-4) var(--space-6);
@@ -203,6 +193,7 @@ legend {
 }
 
 input,
+select,
 button {
   font-family: var(--font-body);
   font-size: 1rem;
@@ -212,7 +203,8 @@ input[type='text'],
 input[type='email'],
 input[type='password'],
 input[type='date'],
-input[type='number'] {
+input[type='number'],
+select {
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -225,6 +217,7 @@ input[type='email']:focus-visible,
 input[type='password']:focus-visible,
 input[type='date']:focus-visible,
 input[type='number']:focus-visible,
+select:focus-visible,
 button:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--color-court);
@@ -269,6 +262,22 @@ button:disabled {
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
   font-weight: 600;
+}
+
+/* .button-primary/.button-danger are also used on <Link>/<a> (e.g. the
+   "New matchday" call to action), which don't pick up the `button { }`
+   element rules above — so these repeat the base button chrome rather
+   than relying on it. */
+.button-primary,
+.button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .button-primary {
@@ -386,44 +395,50 @@ button:disabled {
   color: var(--color-court-deep);
 }
 
-/* ---- Participant picker ---- */
+/* ---- Matchdays hub page ---- */
 
-.participant-grid {
+.page-actions {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin: 0 0 var(--space-4);
+}
+
+.matchday-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-/*
- * Fixed-size toggle chips, not a checkbox grid: selection is shown with
- * an inset box-shadow (not a border-width/padding change), so nothing
- * reflows when a chip is toggled — that reflow was the reported "shift"
- * bug.
- */
-.participant-chip {
-  flex: 0 0 auto;
-  flex-direction: row;
+.matchday-list a {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  min-height: 2.5rem;
-  line-height: 1.2;
-  padding: 0.4rem 0.85rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  box-shadow: inset 0 0 0 0 transparent;
+  border-radius: var(--radius-md);
+  text-decoration: none;
   color: var(--color-ink);
-  font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.1s ease, box-shadow 0.1s ease;
 }
 
-.participant-chip-selected {
-  background: #eef8ea;
-  box-shadow: inset 0 0 0 2px var(--color-court);
-  font-weight: 600;
+.matchday-list a:hover {
+  background: var(--color-glass);
 }
+
+.matchday-list-season {
+  font-weight: 700;
+}
+
+.matchday-list-date {
+  color: var(--color-slate);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+/* ---- Participant picker ---- */
 
 .participant-count {
   display: flex;
@@ -437,6 +452,108 @@ button:disabled {
 
 .participant-count-valid .scoreboard-chip {
   background: var(--color-court);
+}
+
+/* ---- Multiselect (searchable combobox with removable pills) ---- */
+
+.multiselect {
+  position: relative;
+}
+
+.multiselect-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  min-height: 2.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: text;
+}
+
+.multiselect-control:focus-within {
+  outline: 2px solid var(--color-court);
+  outline-offset: 1px;
+}
+
+.multiselect-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  background: #eef8ea;
+  box-shadow: inset 0 0 0 1.5px var(--color-court);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.1;
+}
+
+.multiselect-pill-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-court-deep);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.multiselect-pill-remove:hover {
+  background: rgba(14, 110, 99, 0.15);
+}
+
+.multiselect-input {
+  flex: 1 1 8rem;
+  min-width: 8rem;
+  border: none;
+  padding: 0.3rem 0.2rem;
+  background: transparent;
+  font-size: 1rem;
+}
+
+.multiselect-input:focus-visible {
+  outline: none;
+}
+
+.multiselect-dropdown {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  right: 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.multiselect-option {
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.multiselect-option-highlighted {
+  background: var(--color-glass);
+}
+
+.multiselect-empty {
+  padding: 0.5rem 0.6rem;
+  color: var(--color-slate);
+  font-size: 0.9rem;
 }
 
 /* ---- Matchday rounds & matches ---- */
@@ -482,9 +599,10 @@ button:disabled {
   align-items: center;
 }
 
-.score-form input {
-  width: 3.5rem;
+.score-select {
+  width: 4.2rem;
   text-align: center;
+  text-align-last: center;
   font-family: var(--font-mono);
   font-weight: 700;
 }
