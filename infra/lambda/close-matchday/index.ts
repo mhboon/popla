@@ -13,11 +13,14 @@ const MATCHES_TABLE = process.env.MATCHES_TABLE!;
 const RESULTS_TABLE = process.env.MATCHDAY_RESULTS_TABLE!;
 const STANDINGS_TABLE = process.env.SEASON_STANDINGS_TABLE!;
 
-// Offsets the (small, ~ +/-24) per-matchday game differential into a
-// positive range so it can be tacked onto setsWon in a single sortable
-// number: rankScore = setsWon * 100000 + (gameDiff + OFFSET). Queried
-// descending on the byMatchdayRank GSI, this yields the day ranking
-// (sets won, then game diff) without any resolver-side sorting.
+// Offsets the per-matchday game differential into a positive range so it
+// can be tacked onto gamesWon in a single sortable number: rankScore =
+// gamesWon * 100000 + (gameDiff + OFFSET). Queried descending on the
+// byMatchdayRank GSI, this yields the day ranking (games won, then game
+// diff — see SPEC.md) without any resolver-side sorting. 5000 comfortably
+// covers gameDiff even for an unusually long matchday (rounds are
+// open-ended, see SPEC.md) since 100000 stays the dominant term as long
+// as |gameDiff| stays under 5000, i.e. under ~800 rounds.
 const RANK_SCORE_GAME_DIFF_OFFSET = 5000;
 
 interface CloseMatchdayArgs {
@@ -87,7 +90,7 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
 
   const participantCount = stats.size;
   const ranked = [...stats.entries()].sort((a, b) => {
-    if (b[1].setsWon !== a[1].setsWon) return b[1].setsWon - a[1].setsWon;
+    if (b[1].gamesWon !== a[1].gamesWon) return b[1].gamesWon - a[1].gamesWon;
     return b[1].gamesWon - b[1].gamesLost - (a[1].gamesWon - a[1].gamesLost);
   });
 
@@ -105,7 +108,7 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
     },
   ];
 
-  // Standard competition ranking ("1224"): players tied on both setsWon
+  // Standard competition ranking ("1224"): players tied on both gamesWon
   // and gameDiff share the same rank (and so the same season points)
   // instead of being split across consecutive ranks by array position;
   // the next distinct rank accounts for the size of the tied group
@@ -114,18 +117,18 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
   // detected — see the `tiedWithPrevious` check below.
   let previousRank = 0;
   let previousGameDiff: number | null = null;
-  let previousSetsWon: number | null = null;
+  let previousGamesWon: number | null = null;
 
   ranked.forEach(([playerId, s], index) => {
     const gameDiff = s.gamesWon - s.gamesLost;
-    const tiedWithPrevious = s.setsWon === previousSetsWon && gameDiff === previousGameDiff;
+    const tiedWithPrevious = s.gamesWon === previousGamesWon && gameDiff === previousGameDiff;
     const rank = tiedWithPrevious ? previousRank : index + 1;
     previousRank = rank;
-    previousSetsWon = s.setsWon;
+    previousGamesWon = s.gamesWon;
     previousGameDiff = gameDiff;
 
     const seasonPoints = rank === 1 ? participantCount : participantCount - rank;
-    const rankScore = s.setsWon * 100000 + (gameDiff + RANK_SCORE_GAME_DIFF_OFFSET);
+    const rankScore = s.gamesWon * 100000 + (gameDiff + RANK_SCORE_GAME_DIFF_OFFSET);
 
     transactItems.push({
       Put: {

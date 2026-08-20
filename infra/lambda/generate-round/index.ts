@@ -104,39 +104,38 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
 
 /**
  * Mexicano rounds after the first: rank players by the standings
- * accumulated so far *this matchday* (sets won, then game differential),
- * derived from the completed Matches of prior rounds. This is
- * deliberately not read from a persisted table — MatchdayResults only
- * exists once the matchday is closed, so the interim ranking is
- * recomputed each time a round is generated. Ties are broken by
- * shuffling before the stable sort, so equal standings land in random
- * relative order each time.
+ * accumulated so far *this matchday* (games won, then game differential
+ * — see SPEC.md's Day Ranking), derived from the completed Matches of
+ * prior rounds. This is deliberately not read from a persisted table —
+ * MatchdayResults only exists once the matchday is closed, so the
+ * interim ranking is recomputed each time a round is generated. Ties are
+ * broken by shuffling before the stable sort, so equal standings land in
+ * random relative order each time.
  */
 function rankByStandingsSoFar(
   priorMatches: Record<string, unknown>[],
   participantIds: string[]
 ): string[] {
-  const standings = new Map<string, { setsWon: number; gameDiff: number }>();
+  const standings = new Map<string, { gamesWon: number; gameDiff: number }>();
   for (const playerId of participantIds) {
-    standings.set(playerId, { setsWon: 0, gameDiff: 0 });
+    standings.set(playerId, { gamesWon: 0, gameDiff: 0 });
   }
 
   for (const match of priorMatches) {
     if (match.status !== 'COMPLETE') continue;
     const t1 = match.team1Games as number;
     const t2 = match.team2Games as number;
-    const team1Won = t1 > t2;
 
     for (const playerId of match.team1PlayerIds as string[]) {
       const s = standings.get(playerId);
       if (!s) continue;
-      s.setsWon += team1Won ? 1 : 0;
+      s.gamesWon += t1;
       s.gameDiff += t1 - t2;
     }
     for (const playerId of match.team2PlayerIds as string[]) {
       const s = standings.get(playerId);
       if (!s) continue;
-      s.setsWon += team1Won ? 0 : 1;
+      s.gamesWon += t2;
       s.gameDiff += t2 - t1;
     }
   }
@@ -144,7 +143,7 @@ function rankByStandingsSoFar(
   return randomOrder(participantIds).sort((a, b) => {
     const sa = standings.get(a)!;
     const sb = standings.get(b)!;
-    if (sb.setsWon !== sa.setsWon) return sb.setsWon - sa.setsWon;
+    if (sb.gamesWon !== sa.gamesWon) return sb.gamesWon - sa.gamesWon;
     return sb.gameDiff - sa.gameDiff;
   });
 }

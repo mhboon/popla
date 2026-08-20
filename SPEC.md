@@ -60,12 +60,25 @@ Two supported formats, selectable per matchday:
 ### Day Ranking (within a matchday)
 
 Participants are ranked at the end of a matchday by, in order:
-1. Number of sets won (descending).
+1. Total games won (descending) — **not** sets won. A player who wins
+   fewer sets but more total games (e.g. several close losses) can
+   outrank a player who wins more sets by lopsided margins.
 2. Game differential: games won minus games lost (descending).
 
-Example: a player who wins sets 6-0, 6-0, 6-0, 6-0 outranks a player who
-wins sets 6-1, 6-1, 6-1, 6-1 (both won all 4 sets, but the first has a
-better game differential).
+Example (tiebreak only, both criteria give the same order here): a
+player who wins sets 6-0, 6-0, 6-0, 6-0 outranks a player who wins sets
+6-1, 6-1, 6-1, 6-1 — both won 24 games (winning a set always means
+winning exactly 6 games, regardless of the loser's score), so this comes
+down to the second criterion: the first player's game differential
+(+24) beats the second's (+20).
+
+Example (where this actually differs from ranking by sets won): a
+player who wins one set 6-0 and loses three sets 5-6 has 1 set won but
+21 games won (6 + 5 + 5 + 5). A player who wins two sets 6-0 and loses
+two sets 0-6 has 2 sets won but only 12 games won. The first player
+outranks the second, despite winning fewer sets — they were competitive
+throughout instead of blowing out two matches and getting blown out in
+the other two.
 
 ### Season Points
 
