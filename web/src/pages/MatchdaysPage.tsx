@@ -92,18 +92,18 @@ export function MatchdaysPage() {
                   <th>Season</th>
                   <th>Date</th>
                   <th>Format</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {history.map((matchday) => (
-                  <tr key={matchday.matchdayId}>
-                    <td>{seasonName(matchday.seasonId)}</td>
+                  <tr key={matchday.matchdayId} className="row-clickable">
+                    <td>
+                      <Link to={`/matchdays/${matchday.matchdayId}`} className="row-link">
+                        {seasonName(matchday.seasonId)}
+                      </Link>
+                    </td>
                     <td>{matchday.date}</td>
                     <td>{matchday.format}</td>
-                    <td>
-                      <Link to={`/matchdays/${matchday.matchdayId}`}>View</Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>

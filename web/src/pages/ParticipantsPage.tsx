@@ -137,14 +137,13 @@ export function ParticipantsPage() {
                   <th>Name</th>
                   <th>Phone</th>
                   <th>Email</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {players.map((player) =>
                   editingId === player.playerId ? (
                     <tr key={player.playerId}>
-                      <td colSpan={4}>
+                      <td colSpan={3}>
                         <form onSubmit={handleSaveEdit} className="inline-form">
                           <input
                             type="text"
@@ -174,15 +173,23 @@ export function ParticipantsPage() {
                       </td>
                     </tr>
                   ) : (
-                    <tr key={player.playerId}>
+                    <tr
+                      key={player.playerId}
+                      className="row-actionable"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Edit ${player.displayName}`}
+                      onClick={() => startEdit(player)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          startEdit(player);
+                        }
+                      }}
+                    >
                       <td>{player.displayName}</td>
                       <td>{player.phone ?? '—'}</td>
                       <td>{player.email ?? '—'}</td>
-                      <td>
-                        <button type="button" onClick={() => startEdit(player)}>
-                          Edit
-                        </button>
-                      </td>
                     </tr>
                   )
                 )}
