@@ -22,15 +22,17 @@ const GAME_SCORES = [0, 1, 2, 3, 4, 5, 6];
 interface StandingSoFar {
   playerId: string;
   setsWon: number;
+  gamesWon: number;
   gameDiff: number;
 }
 
 /**
- * Same tally as infra/lambda/close-matchday, computed client-side from
- * whatever COMPLETE matches have been recorded so far — this is what
- * lets the Ranking tab show an intermediate standing before the
- * matchday is closed, without a backend round-trip (the client already
- * has every match's score loaded).
+ * Same tally as infra/lambda/close-matchday — game differential, then
+ * games won, then sets won, see SPEC.md's Day Ranking — computed
+ * client-side from whatever COMPLETE matches have been recorded so far.
+ * This is what lets the Ranking tab show an intermediate standing before
+ * the matchday is closed, without a backend round-trip (the client
+ * already has every match's score loaded).
  */
 function standingsSoFar(matches: Match[]): StandingSoFar[] {
   const stats = new Map<string, { setsWon: number; gamesWon: number; gamesLost: number }>();
@@ -61,8 +63,17 @@ function standingsSoFar(matches: Match[]): StandingSoFar[] {
   }
 
   return [...stats.entries()]
-    .map(([playerId, s]) => ({ playerId, setsWon: s.setsWon, gameDiff: s.gamesWon - s.gamesLost }))
-    .sort((a, b) => (b.setsWon !== a.setsWon ? b.setsWon - a.setsWon : b.gameDiff - a.gameDiff));
+    .map(([playerId, s]) => ({
+      playerId,
+      setsWon: s.setsWon,
+      gamesWon: s.gamesWon,
+      gameDiff: s.gamesWon - s.gamesLost,
+    }))
+    .sort((a, b) => {
+      if (b.gameDiff !== a.gameDiff) return b.gameDiff - a.gameDiff;
+      if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+      return b.setsWon - a.setsWon;
+    });
 }
 
 export function MatchdayPage() {
@@ -276,8 +287,9 @@ export function MatchdayPage() {
                   <tr>
                     <th>#</th>
                     <th>Player</th>
-                    <th>Sets won</th>
                     <th>Game diff</th>
+                    <th>Games won</th>
+                    <th>Sets won</th>
                     <th>Season points</th>
                   </tr>
                 </thead>
@@ -288,8 +300,9 @@ export function MatchdayPage() {
                         <span className="scoreboard-chip">{result.rank}</span>
                       </td>
                       <td>{playerName(result.playerId)}</td>
-                      <td className="num">{result.setsWon}</td>
                       <td className="num">{result.gameDiff}</td>
+                      <td className="num">{result.gamesWon}</td>
+                      <td className="num">{result.setsWon}</td>
                       <td className="num">{result.seasonPoints}</td>
                     </tr>
                   ))}
@@ -310,22 +323,25 @@ export function MatchdayPage() {
                     <tr>
                       <th>#</th>
                       <th>Player</th>
-                      <th>Sets won</th>
                       <th>Game diff</th>
+                      <th>Games won</th>
+                      <th>Sets won</th>
                     </tr>
                   </thead>
                   <tbody>
                     {assignCompetitionRank(
                       standingsSoFar(matches),
-                      (a, b) => a.setsWon === b.setsWon && a.gameDiff === b.gameDiff
+                      (a, b) =>
+                        a.gameDiff === b.gameDiff && a.gamesWon === b.gamesWon && a.setsWon === b.setsWon
                     ).map((standing) => (
                       <tr key={standing.playerId}>
                         <td>
                           <span className="scoreboard-chip">{standing.rank}</span>
                         </td>
                         <td>{playerName(standing.playerId)}</td>
-                        <td className="num">{standing.setsWon}</td>
                         <td className="num">{standing.gameDiff}</td>
+                        <td className="num">{standing.gamesWon}</td>
+                        <td className="num">{standing.setsWon}</td>
                       </tr>
                     ))}
                   </tbody>
