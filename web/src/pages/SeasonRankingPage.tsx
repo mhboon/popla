@@ -38,26 +38,30 @@ export function SeasonRankingPage() {
       {standings.length === 0 ? (
         <p>No matchdays have been closed yet this season.</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Player</th>
-              <th>Points</th>
-              <th>Matchdays played</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standings.map((standing, index) => (
-              <tr key={standing.playerId}>
-                <td>{index + 1}</td>
-                <td>{players.get(standing.playerId)?.displayName ?? standing.playerId}</td>
-                <td>{standing.totalPoints}</td>
-                <td>{standing.matchdaysPlayed}</td>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Player</th>
+                <th>Points</th>
+                <th>Matchdays played</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {standings.map((standing, index) => (
+                <tr key={standing.playerId}>
+                  <td>
+                    <span className="scoreboard-chip">{index + 1}</span>
+                  </td>
+                  <td>{players.get(standing.playerId)?.displayName ?? standing.playerId}</td>
+                  <td className="num">{standing.totalPoints}</td>
+                  <td className="num">{standing.matchdaysPlayed}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

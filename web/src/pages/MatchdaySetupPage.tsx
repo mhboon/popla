@@ -147,7 +147,7 @@ export function MatchdaySetupPage() {
         <fieldset>
           <legend>Participants</legend>
           <p className={`participant-count${validCount ? ' participant-count-valid' : ''}`}>
-            <span className="participant-count-badge">{count}</span>
+            <span className="scoreboard-chip">{count}</span>
             {validCount ? ' selected' : ' selected — must be a multiple of 4'}
           </p>
           <div className="participant-grid">
@@ -170,7 +170,7 @@ export function MatchdaySetupPage() {
           </div>
         </fieldset>
 
-        <button type="submit" disabled={!validCount || submitting}>
+        <button type="submit" className="button-primary" disabled={!validCount || submitting}>
           {submitting ? 'Saving…' : editing ? 'Save changes' : 'Continue'}
         </button>
       </form>

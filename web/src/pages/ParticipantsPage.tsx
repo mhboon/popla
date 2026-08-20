@@ -97,6 +97,7 @@ export function ParticipantsPage() {
           <label>
             Name
             <input
+              type="text"
               value={registerForm.displayName}
               onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })}
               required
@@ -105,6 +106,7 @@ export function ParticipantsPage() {
           <label>
             Phone (optional)
             <input
+              type="text"
               value={registerForm.phone}
               onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
             />
@@ -117,7 +119,7 @@ export function ParticipantsPage() {
               onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
             />
           </label>
-          <button type="submit" disabled={registering}>
+          <button type="submit" className="button-primary" disabled={registering}>
             {registering ? 'Registering…' : 'Register'}
           </button>
         </form>
@@ -128,61 +130,65 @@ export function ParticipantsPage() {
         {loading ? (
           <p>Loading…</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((player) =>
-                editingId === player.playerId ? (
-                  <tr key={player.playerId}>
-                    <td colSpan={4}>
-                      <form onSubmit={handleSaveEdit} className="inline-form">
-                        <input
-                          value={editForm.displayName}
-                          onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
-                          required
-                        />
-                        <input
-                          value={editForm.phone}
-                          onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                          placeholder="Phone"
-                        />
-                        <input
-                          type="email"
-                          value={editForm.email}
-                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                          placeholder="Email"
-                        />
-                        <button type="submit" disabled={saving}>
-                          {saving ? 'Saving…' : 'Save'}
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((player) =>
+                  editingId === player.playerId ? (
+                    <tr key={player.playerId}>
+                      <td colSpan={4}>
+                        <form onSubmit={handleSaveEdit} className="inline-form">
+                          <input
+                            type="text"
+                            value={editForm.displayName}
+                            onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+                            required
+                          />
+                          <input
+                            type="text"
+                            value={editForm.phone}
+                            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                            placeholder="Phone"
+                          />
+                          <input
+                            type="email"
+                            value={editForm.email}
+                            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                            placeholder="Email"
+                          />
+                          <button type="submit" className="button-primary" disabled={saving}>
+                            {saving ? 'Saving…' : 'Save'}
+                          </button>
+                          <button type="button" onClick={() => setEditingId(null)}>
+                            Cancel
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={player.playerId}>
+                      <td>{player.displayName}</td>
+                      <td>{player.phone ?? '—'}</td>
+                      <td>{player.email ?? '—'}</td>
+                      <td>
+                        <button type="button" onClick={() => startEdit(player)}>
+                          Edit
                         </button>
-                        <button type="button" onClick={() => setEditingId(null)}>
-                          Cancel
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={player.playerId}>
-                    <td>{player.displayName}</td>
-                    <td>{player.phone ?? '—'}</td>
-                    <td>{player.email ?? '—'}</td>
-                    <td>
-                      <button type="button" onClick={() => startEdit(player)}>
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

@@ -1,6 +1,47 @@
+/*
+ * Design tokens. Grounded in the actual materials of a padel match: the
+ * teal artificial turf, the tempered glass court walls, and the
+ * fluorescent yellow-green felt of the ball — used sparingly as the one
+ * bold accent, everywhere else quiet. See ARCHITECTURE.md/CLAUDE.md for
+ * why this stays plain CSS custom properties rather than Sass/MUI: one
+ * token block here is the "centralized styling," and this app's
+ * component set is small enough that a library would fight the
+ * distinctive look more than it would save time.
+ */
 :root {
   color-scheme: light;
-  font-family: system-ui, -apple-system, sans-serif;
+
+  --color-court: #0e6e63;
+  --color-court-deep: #0a4f47;
+  --color-glass: #eef3f2;
+  --color-surface: #ffffff;
+  --color-ball: #c4e23a;
+  --color-ball-deep: #8fa816;
+  --color-ink: #10201d;
+  --color-slate: #52655f;
+  --color-border: #d9e2dd;
+  --color-danger: #c1432b;
+  --color-danger-deep: #8f2e1b;
+
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+
+  --shadow-sm: 0 1px 2px rgba(16, 32, 29, 0.06);
+  --shadow-md: 0 8px 24px rgba(16, 32, 29, 0.1);
+  --shadow-lg: 0 20px 48px rgba(16, 32, 29, 0.22);
 }
 
 * {
@@ -9,9 +50,39 @@
 
 body {
   margin: 0;
-  background: #f5f7f5;
-  color: #16211f;
+  background: var(--color-glass);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-4);
+}
+
+h1 {
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.15rem;
+  padding-bottom: var(--space-2);
+  border-bottom: 3px solid var(--color-ball);
+  display: inline-block;
+}
+
+a {
+  color: var(--color-court);
+  font-weight: 600;
+}
+
+/* ---- Layout shell ---- */
 
 .app-shell {
   min-height: 100vh;
@@ -24,79 +95,303 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: #ffffff;
-  border-bottom: 1px solid #d7ddd8;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-court-deep);
+  box-shadow: var(--shadow-sm);
 }
 
 .app-header .brand {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
   font-weight: 700;
   text-decoration: none;
-  color: #0f8b9e;
+  color: #ffffff;
+  letter-spacing: -0.01em;
 }
 
 .app-header nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: var(--space-1);
   align-items: center;
+}
+
+.app-header nav a,
+.app-header nav button {
+  color: #eef3f2;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.app-header nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app-header nav button {
+  border-color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+}
+
+.app-header nav button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-current-matchday {
+  background: var(--color-ball) !important;
+  color: var(--color-court-deep) !important;
+}
+
+.nav-current-matchday:hover {
+  background: var(--color-ball) !important;
+  filter: brightness(1.05);
 }
 
 .app-main {
   flex: 1;
-  padding: 1rem;
-  max-width: 900px;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+  max-width: 960px;
   width: 100%;
   margin: 0 auto;
 }
+
+.app-main section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin: 0 0 var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Forms ---- */
 
 form,
 .inline-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: flex-end;
-  margin: 1rem 0;
+  margin: var(--space-4) 0;
 }
 
 label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-slate);
+}
+
+fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin: 0;
+}
+
+legend {
+  font-family: var(--font-display);
+  font-weight: 700;
+  padding: 0 var(--space-2);
 }
 
 input,
 button {
-  padding: 0.5rem;
+  font-family: var(--font-body);
   font-size: 1rem;
 }
 
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='date'],
+input[type='number'] {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+input[type='text']:focus-visible,
+input[type='email']:focus-visible,
+input[type='password']:focus-visible,
+input[type='date']:focus-visible,
+input[type='number']:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-court);
+  outline-offset: 2px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--color-court);
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
 button {
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-glass);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .form-error {
-  color: #b3261e;
+  color: var(--color-danger-deep);
+  background: #fbeae6;
+  border: 1px solid #f0c4ba;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+
+.button-primary {
+  background: var(--color-court);
+  color: #ffffff;
+  border: 1px solid var(--color-court);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--color-court-deep);
+}
+
+.button-danger {
+  background: var(--color-danger);
+  color: #ffffff;
+  border: 1px solid var(--color-danger);
+}
+
+.button-danger:hover:not(:disabled) {
+  background: var(--color-danger-deep);
+}
+
+/* ---- Data tables ---- */
+
+.table-scroll {
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 420px;
 }
 
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 0.5rem;
-  border-bottom: 1px solid #d7ddd8;
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
 }
+
+.data-table th {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  color: var(--color-slate);
+}
+
+.data-table tbody tr:hover {
+  background: var(--color-glass);
+}
+
+.data-table td.num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* ---- Scoreboard chip: the signature element. Court-deep + mono
+   ball-yellow digits, reused everywhere a number matters (selection
+   counts, round numbers, ranks, scores) so they all read as the same
+   kind of thing. ---- */
+
+.scoreboard-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-court-deep);
+  color: var(--color-ball);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.scoreboard-chip-muted {
+  background: var(--color-slate);
+}
+
+/* ---- Status badges ---- */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--color-border);
+  color: var(--color-slate);
+}
+
+.status-active,
+.status-in_progress {
+  background: #fff4cf;
+  color: #8a6d00;
+}
+
+.status-setup {
+  background: #e4ecff;
+  color: #2d4ba0;
+}
+
+.status-closed {
+  background: #dff2ee;
+  color: var(--color-court-deep);
+}
+
+/* ---- Participant picker ---- */
 
 .participant-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 /*
@@ -112,68 +407,75 @@ button {
   gap: 0.4rem;
   min-height: 2.5rem;
   line-height: 1.2;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid #d7ddd8;
-  border-radius: 999px;
-  background: #ffffff;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
   box-shadow: inset 0 0 0 0 transparent;
+  color: var(--color-ink);
+  font-weight: 500;
   cursor: pointer;
   user-select: none;
   transition: background 0.1s ease, box-shadow 0.1s ease;
 }
 
 .participant-chip-selected {
-  background: #e3f6f2;
-  box-shadow: inset 0 0 0 2px #0f8b9e;
+  background: #eef8ea;
+  box-shadow: inset 0 0 0 2px var(--color-court);
+  font-weight: 600;
 }
 
 .participant-count {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 0.75rem;
-  color: #57675f;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  color: var(--color-slate);
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.participant-count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.75rem;
-  height: 1.75rem;
-  padding: 0 0.4rem;
-  border-radius: 999px;
-  background: #57675f;
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.85rem;
+.participant-count-valid .scoreboard-chip {
+  background: var(--color-court);
 }
 
-.participant-count-valid .participant-count-badge {
-  background: #0f8b9e;
+/* ---- Matchday rounds & matches ---- */
+
+.matchday-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
 }
 
 .match-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .match-card {
-  border: 1px solid #d7ddd8;
-  border-radius: 8px;
-  padding: 0.75rem;
-  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-surface);
 }
 
 .match-court {
-  font-weight: 600;
-  margin: 0 0 0.5rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  color: var(--color-slate);
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
 }
 
 .match-vs {
-  color: #57675f;
-  margin: 0.25rem 0;
+  color: var(--color-slate);
+  font-size: 0.8rem;
+  margin: 0.15rem 0;
 }
 
 .score-form {
@@ -182,60 +484,73 @@ button {
 
 .score-form input {
   width: 3.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
 }
 
 .score-display {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
 }
+
+.score-display strong {
+  font-family: var(--font-mono);
+  background: var(--color-court-deep);
+  color: var(--color-ball);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.7rem;
+  font-size: 1.1rem;
+  letter-spacing: 0.03em;
+}
+
+/* ---- Auth ---- */
 
 .auth-form {
-  max-width: 320px;
+  max-width: 340px;
   flex-direction: column;
   align-items: stretch;
-  margin: 2rem auto;
+  margin: 3rem auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
 }
 
-.button-primary {
-  background: #0f8b9e;
-  color: #ffffff;
-  border: 1px solid #0f8b9e;
-}
-
-.button-danger {
-  background: #b3261e;
-  color: #ffffff;
-  border: 1px solid #b3261e;
-}
+/* ---- Confirm dialog ---- */
 
 .confirm-dialog {
   border: none;
-  border-radius: 12px;
-  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
   max-width: 420px;
   width: calc(100% - 2rem);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-body);
 }
 
 .confirm-dialog::backdrop {
-  background: rgba(15, 33, 31, 0.45);
+  background: rgba(10, 20, 18, 0.55);
 }
 
 .confirm-dialog-title {
-  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  margin: 0 0 var(--space-2);
 }
 
 .confirm-dialog-message {
   margin: 0;
-  color: #57675f;
+  color: var(--color-slate);
 }
 
 .confirm-dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
 }
 
 /* Bottom sheet on narrow viewports, centered modal (default UA
@@ -246,7 +561,7 @@ button {
     width: 100%;
     margin: 0;
     inset: auto 0 0 0;
-    border-radius: 12px 12px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
   .confirm-dialog-actions {
@@ -254,6 +569,38 @@ button {
   }
 
   .confirm-dialog-actions button {
+    width: 100%;
+  }
+}
+
+/* ---- Responsive tightening ---- */
+
+@media (max-width: 640px) {
+  .app-header {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .app-header nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .app-main {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
+
+  .app-main section {
+    padding: var(--space-4);
+  }
+
+  form,
+  .inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  form button,
+  .inline-form button {
     width: 100%;
   }
 }

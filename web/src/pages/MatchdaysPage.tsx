@@ -36,34 +36,36 @@ export function MatchdaysPage() {
       {matchdays.length === 0 ? (
         <p>No matchdays yet in this season.</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Format</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {matchdays.map((matchday) => (
-              <tr key={matchday.matchdayId}>
-                <td>{matchday.date}</td>
-                <td>{matchday.format}</td>
-                <td>
-                  <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
-                    {matchday.status.replace('_', ' ')}
-                  </span>
-                </td>
-                <td>
-                  <Link to={`/matchdays/${matchday.matchdayId}`}>
-                    {matchday.status === 'CLOSED' ? 'View' : 'Open'}
-                  </Link>
-                </td>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Format</th>
+                <th>Status</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {matchdays.map((matchday) => (
+                <tr key={matchday.matchdayId}>
+                  <td>{matchday.date}</td>
+                  <td>{matchday.format}</td>
+                  <td>
+                    <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
+                      {matchday.status.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td>
+                    <Link to={`/matchdays/${matchday.matchdayId}`}>
+                      {matchday.status === 'CLOSED' ? 'View' : 'Open'}
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

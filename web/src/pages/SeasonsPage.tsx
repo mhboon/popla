@@ -93,7 +93,7 @@ export function SeasonsPage() {
         <form onSubmit={handleCreate} className="inline-form">
           <label>
             Name
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
           <label>
             Start date
@@ -104,7 +104,7 @@ export function SeasonsPage() {
               required
             />
           </label>
-          <button type="submit" disabled={creating || hasActiveSeason}>
+          <button type="submit" className="button-primary" disabled={creating || hasActiveSeason}>
             {creating ? 'Creating…' : 'Create season'}
           </button>
         </form>
@@ -115,48 +115,54 @@ export function SeasonsPage() {
         {loading ? (
           <p>Loading…</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Start date</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {seasons.map((season) => (
-                <tr key={season.seasonId}>
-                  <td>{season.name}</td>
-                  <td>{season.status}</td>
-                  <td>{season.startDate}</td>
-                  <td>
-                    <Link to={`/seasons/${season.seasonId}/matchdays`}>Matchdays</Link>{' '}
-                    <Link to={`/seasons/${season.seasonId}/ranking`}>Ranking</Link>{' '}
-                    {season.status === 'ACTIVE' && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmCloseId(season.seasonId)}
-                        disabled={busySeasonId === season.seasonId}
-                      >
-                        Close
-                      </button>
-                    )}
-                    {season.status === 'CLOSED' && (
-                      <button
-                        type="button"
-                        onClick={() => handleReopen(season.seasonId)}
-                        disabled={busySeasonId === season.seasonId || hasActiveSeason}
-                        title={hasActiveSeason ? 'Close the active season first' : undefined}
-                      >
-                        Reopen
-                      </button>
-                    )}
-                  </td>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Start date</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {seasons.map((season) => (
+                  <tr key={season.seasonId}>
+                    <td>{season.name}</td>
+                    <td>
+                      <span className={`status-badge status-${season.status.toLowerCase()}`}>
+                        {season.status}
+                      </span>
+                    </td>
+                    <td>{season.startDate}</td>
+                    <td>
+                      <Link to={`/seasons/${season.seasonId}/matchdays`}>Matchdays</Link>{' '}
+                      <Link to={`/seasons/${season.seasonId}/ranking`}>Ranking</Link>{' '}
+                      {season.status === 'ACTIVE' && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmCloseId(season.seasonId)}
+                          disabled={busySeasonId === season.seasonId}
+                        >
+                          Close
+                        </button>
+                      )}
+                      {season.status === 'CLOSED' && (
+                        <button
+                          type="button"
+                          onClick={() => handleReopen(season.seasonId)}
+                          disabled={busySeasonId === season.seasonId || hasActiveSeason}
+                          title={hasActiveSeason ? 'Close the active season first' : undefined}
+                        >
+                          Reopen
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

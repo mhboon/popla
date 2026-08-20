@@ -106,7 +106,10 @@ export function MatchdayPage() {
     <div>
       <h1>Matchday — {matchday.date}</h1>
       <p>
-        Tournament style: {matchday.format} · Status: {matchday.status}
+        Tournament style: {matchday.format} ·{' '}
+        <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
+          {matchday.status.replace('_', ' ')}
+        </span>
         {matchday.status === 'SETUP' && (
           <>
             {' · '}
@@ -119,33 +122,42 @@ export function MatchdayPage() {
       {matchday.status === 'CLOSED' ? (
         <section>
           <h2>Ranking</h2>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Player</th>
-                <th>Sets won</th>
-                <th>Game diff</th>
-                <th>Season points</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranking.map((result) => (
-                <tr key={result.playerId}>
-                  <td>{result.rank}</td>
-                  <td>{playerName(result.playerId)}</td>
-                  <td>{result.setsWon}</td>
-                  <td>{result.gameDiff}</td>
-                  <td>{result.seasonPoints}</td>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Player</th>
+                  <th>Sets won</th>
+                  <th>Game diff</th>
+                  <th>Season points</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ranking.map((result) => (
+                  <tr key={result.playerId}>
+                    <td>
+                      <span className="scoreboard-chip">{result.rank}</span>
+                    </td>
+                    <td>{playerName(result.playerId)}</td>
+                    <td className="num">{result.setsWon}</td>
+                    <td className="num">{result.gameDiff}</td>
+                    <td className="num">{result.seasonPoints}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : (
         currentRoundComplete && (
           <div className="matchday-next-actions">
-            <button type="button" onClick={handleGenerateRound} disabled={generating}>
+            <button
+              type="button"
+              className="button-primary"
+              onClick={handleGenerateRound}
+              disabled={generating}
+            >
               {generating ? 'Generating…' : `Generate round ${currentRound + 1}`}
             </button>
             <button
@@ -175,7 +187,7 @@ export function MatchdayPage() {
       />
 
       {currentRound === 0 && matchday.status !== 'CLOSED' && (
-        <button type="button" onClick={handleGenerateRound} disabled={generating}>
+        <button type="button" className="button-primary" onClick={handleGenerateRound} disabled={generating}>
           {generating ? 'Generating…' : 'Generate round 1'}
         </button>
       )}
@@ -185,7 +197,9 @@ export function MatchdayPage() {
         const readOnly = round !== currentRound || matchday.status === 'CLOSED';
         return (
           <section key={round}>
-            <h2>Round {round}</h2>
+            <h2>
+              Round <span className="scoreboard-chip">{round}</span>
+            </h2>
             <div className="match-grid">
               {roundMatches.map((match) => (
                 <MatchCard
@@ -274,7 +288,7 @@ function MatchCard({
             onChange={(e) => setTeam2Games(Number(e.target.value))}
             required
           />
-          <button type="submit" disabled={saving}>
+          <button type="submit" className="button-primary" disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </button>
           {match.status === 'COMPLETE' && (
