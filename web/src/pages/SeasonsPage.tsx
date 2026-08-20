@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import { closeSeason, createSeason, listSeasons, reopenSeason } from '../lib/api';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { Season } from '../types/graphql';
 
 export function SeasonsPage() {
@@ -12,6 +13,7 @@ export function SeasonsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busySeasonId, setBusySeasonId] = useState<string | null>(null);
+  const [confirmCloseId, setConfirmCloseId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -133,7 +135,7 @@ export function SeasonsPage() {
                     {season.status === 'ACTIVE' && (
                       <button
                         type="button"
-                        onClick={() => handleClose(season.seasonId)}
+                        onClick={() => setConfirmCloseId(season.seasonId)}
                         disabled={busySeasonId === season.seasonId}
                       >
                         Close
@@ -156,6 +158,23 @@ export function SeasonsPage() {
           </table>
         )}
       </section>
+
+      <ConfirmDialog
+        open={confirmCloseId !== null}
+        title="Close this season?"
+        message={`Closing "${
+          seasons.find((s) => s.seasonId === confirmCloseId)?.name ?? ''
+        }" finalizes its ranking. It stays viewable, and you can reopen it later if the active season slot is free.`}
+        confirmLabel="Close season"
+        danger
+        busy={busySeasonId === confirmCloseId}
+        onCancel={() => setConfirmCloseId(null)}
+        onConfirm={() => {
+          const id = confirmCloseId;
+          setConfirmCloseId(null);
+          if (id) handleClose(id);
+        }}
+      />
     </div>
   );
 }
