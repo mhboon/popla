@@ -15,12 +15,13 @@ const PARTICIPANTS_TABLE = process.env.MATCHDAY_PARTICIPANTS_TABLE!;
 interface UpdateMatchdayArgs {
   matchdayId: string;
   date?: string;
+  startTime?: string;
   format?: 'MEXICANO' | 'AMERICANO';
   participantIds?: string[];
 }
 
 export const handler = async (event: { arguments: UpdateMatchdayArgs }) => {
-  const { matchdayId, date, format, participantIds } = event.arguments;
+  const { matchdayId, date, startTime, format, participantIds } = event.arguments;
 
   const { Item: matchday } = await ddb.send(
     new GetCommand({ TableName: MATCHDAYS_TABLE, Key: { matchdayId } })
@@ -46,6 +47,11 @@ export const handler = async (event: { arguments: UpdateMatchdayArgs }) => {
     matchdayNames['#date'] = 'date';
     matchdayValues[':date'] = date;
   }
+  if (startTime !== undefined) {
+    matchdaySetClauses.push('#startTime = :startTime');
+    matchdayNames['#startTime'] = 'startTime';
+    matchdayValues[':startTime'] = startTime;
+  }
   if (format !== undefined) {
     matchdaySetClauses.push('#format = :format');
     matchdayNames['#format'] = 'format';
@@ -64,7 +70,7 @@ export const handler = async (event: { arguments: UpdateMatchdayArgs }) => {
         })
       );
     }
-    return { ...matchday, date: date ?? matchday.date, format: format ?? matchday.format };
+    return { ...matchday, date: date ?? matchday.date, startTime: startTime ?? matchday.startTime, format: format ?? matchday.format };
   }
 
   const existingResult = await ddb.send(
@@ -112,5 +118,5 @@ export const handler = async (event: { arguments: UpdateMatchdayArgs }) => {
     await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
   }
 
-  return { ...matchday, date: date ?? matchday.date, format: format ?? matchday.format };
+  return { ...matchday, date: date ?? matchday.date, startTime: startTime ?? matchday.startTime, format: format ?? matchday.format };
 };

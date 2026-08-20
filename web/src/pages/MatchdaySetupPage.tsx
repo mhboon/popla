@@ -28,6 +28,7 @@ export function MatchdaySetupPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startTime, setStartTime] = useState('');
   const [format, setFormat] = useState<MatchdayFormat>('MEXICANO');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -54,6 +55,7 @@ export function MatchdaySetupPage() {
             setError('This matchday can no longer be edited — round 1 has already been generated.');
           }
           setDate(matchday.date);
+          setStartTime(matchday.startTime ? matchday.startTime.slice(0, 5) : '');
           setFormat(matchday.format);
         }
         if (participantIds.length > 0) {
@@ -110,6 +112,7 @@ export function MatchdaySetupPage() {
         await updateMatchday(idToken, {
           matchdayId,
           date,
+          startTime: startTime ? `${startTime}:00` : undefined,
           format,
           participantIds: [...selected],
         });
@@ -119,6 +122,7 @@ export function MatchdaySetupPage() {
         const matchday = await createMatchday(idToken, {
           seasonId: activeSeason.seasonId,
           date,
+          startTime: startTime ? `${startTime}:00` : undefined,
           format,
           participantIds: [...selected],
         });
@@ -152,6 +156,11 @@ export function MatchdaySetupPage() {
           <label>
             Date
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </label>
+
+          <label>
+            Time (optional)
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           </label>
 
           <label>

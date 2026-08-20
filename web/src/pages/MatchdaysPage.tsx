@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import { listMatchdaysBySeason, listSeasons } from '../lib/api';
+import { compareMatchdayWhenDesc, formatMatchdayWhen } from '../lib/matchday';
 import type { Matchday, Season } from '../types/graphql';
 
 export function MatchdaysPage() {
@@ -34,12 +35,8 @@ export function MatchdaysPage() {
   if (loading) return <p>Loading…</p>;
   if (error) return <p className="form-error">{error}</p>;
 
-  const active = matchdays
-    .filter((m) => m.status !== 'CLOSED')
-    .sort((a, b) => b.date.localeCompare(a.date));
-  const history = matchdays
-    .filter((m) => m.status === 'CLOSED')
-    .sort((a, b) => b.date.localeCompare(a.date));
+  const active = matchdays.filter((m) => m.status !== 'CLOSED').sort(compareMatchdayWhenDesc);
+  const history = matchdays.filter((m) => m.status === 'CLOSED').sort(compareMatchdayWhenDesc);
   const activeSeason = seasons.find((s) => s.status === 'ACTIVE');
 
   return (
@@ -68,7 +65,7 @@ export function MatchdaysPage() {
               <li key={matchday.matchdayId}>
                 <Link to={`/matchdays/${matchday.matchdayId}`}>
                   <span className="matchday-list-season">{seasonName(matchday.seasonId)}</span>
-                  <span className="matchday-list-date">{matchday.date}</span>
+                  <span className="matchday-list-date">{formatMatchdayWhen(matchday)}</span>
                   <span>{matchday.format}</span>
                   <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
                     {matchday.status.replace('_', ' ')}
@@ -102,7 +99,7 @@ export function MatchdaysPage() {
                         {seasonName(matchday.seasonId)}
                       </Link>
                     </td>
-                    <td>{matchday.date}</td>
+                    <td>{formatMatchdayWhen(matchday)}</td>
                     <td>{matchday.format}</td>
                   </tr>
                 ))}

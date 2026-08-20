@@ -79,8 +79,10 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 
 ### `Matchdays`
 - PK: `matchdayId`
-- Attributes: `seasonId`, `date`, `format` (`MEXICANO` | `AMERICANO`),
-  `status` (`SETUP` | `IN_PROGRESS` | `CLOSED`).
+- Attributes: `seasonId`, `date`, `startTime` (optional time-of-day —
+  kept as a separate attribute rather than folding into `date` so
+  existing rows don't need migrating), `format` (`MEXICANO` |
+  `AMERICANO`), `status` (`SETUP` | `IN_PROGRESS` | `CLOSED`).
 - GSI `bySeasonId`: PK `seasonId`, SK `date` — list matchdays in a season,
   chronologically.
 
