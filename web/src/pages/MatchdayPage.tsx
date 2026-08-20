@@ -151,8 +151,13 @@ export function MatchdayPage() {
   const roundNumbers = [...matchesByRound.keys()].sort((a, b) => a - b);
   const currentRound = roundNumbers.at(-1) ?? 0;
   const currentRoundMatches = matchesByRound.get(currentRound) ?? [];
+  const isOpen = matchday.status !== 'CLOSED';
+  // A closed matchday's last round is always fully COMPLETE by
+  // definition (that's a precondition of closing) — gate on isOpen too,
+  // or the "generate next round"/"finish matchday" actions reappear on
+  // an already-closed matchday.
   const currentRoundComplete =
-    currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
+    isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
 
   return (
     <div>
@@ -225,7 +230,7 @@ export function MatchdayPage() {
             }}
           />
 
-          {currentRound === 0 && matchday.status !== 'CLOSED' && (
+          {currentRound === 0 && isOpen && (
             <button
               type="button"
               className="button-primary"
