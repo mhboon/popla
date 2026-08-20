@@ -181,6 +181,13 @@ a {
   margin: 0 auto;
 }
 
+.app-footer {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-slate);
+  font-size: 0.8rem;
+}
+
 .app-main section {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
