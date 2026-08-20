@@ -30,6 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
         )}
       </header>
       <main className="app-main">{children}</main>
+      <footer className="app-footer">Popla Cup</footer>
     </div>
   );
 }
