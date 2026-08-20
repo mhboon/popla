@@ -100,7 +100,17 @@ export class PoplaBackendStack extends Stack {
 
     // ---- Cognito ----
 
-    const userPool = new cognito.UserPool(this, 'UserPool', {
+    // Construct ID is 'UserPoolV2', not 'UserPool': switching
+    // signInAliases below changes UsernameAttributes -> AliasAttributes,
+    // which Cognito's API refuses to update in place ("Updates are not
+    // allowed for property - AliasAttributes") — CloudFormation doesn't
+    // mark this as a replacement-triggering property change on its own,
+    // it just attempts an UpdateUserPool call that Cognito then rejects,
+    // failing the whole stack update. Renaming the construct forces CDK
+    // to emit a new logical ID, so CloudFormation creates a fresh pool
+    // and detaches (not deletes, per removalPolicy below) the old one
+    // instead of trying to mutate it.
+    const userPool = new cognito.UserPool(this, 'UserPoolV2', {
       userPoolName: 'popla-users',
       selfSignUpEnabled: false,
       // `username: true` alongside `email: true` puts Cognito in
