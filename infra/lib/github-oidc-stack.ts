@@ -1,4 +1,4 @@
-import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
+import { Stack, StackProps, CfnOutput, Aws, DefaultStackSynthesizer } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 
@@ -50,14 +50,33 @@ export class GithubOidcStack extends Stack {
         },
       }),
       description: 'Assumed by GitHub Actions to deploy the Popla Cup CDK stacks',
-      // AdministratorAccess is the simplest starting point for a solo
-      // project deploying via CDK (which needs broad CloudFormation/IAM
-      // permissions anyway). Tighten to a scoped deploy policy later if
-      // desired.
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AdministratorAccess'),
-      ],
     });
+
+    // `cdk bootstrap` (run once per account/region, outside this stack)
+    // creates a deploy-role and a file-publishing-role whose trust
+    // policies allow any same-account principal with `sts:AssumeRole` to
+    // assume them — that's the only permission this role needs. The
+    // actual broad resource-creation permissions live on a separate
+    // cfn-exec-role that `cdk deploy` passes to CloudFormation, but whose
+    // trust policy only allows the CloudFormation *service* to assume it,
+    // never this role directly. So even a compromised GitHub Actions run
+    // can only ask CloudFormation to reconcile stacks (audited,
+    // change-set-based) — it can't call arbitrary AWS APIs directly, e.g.
+    // `iam:CreateAccessKey` to mint a persistent backdoor credential,
+    // the way AdministratorAccess would allow.
+    // Add lookup-role/image-publishing-role here too if this app ever
+    // uses context lookups (e.g. `Vpc.fromLookup`) or Docker-bundled
+    // assets — neither is used today.
+    const bootstrapQualifier = DefaultStackSynthesizer.DEFAULT_QUALIFIER;
+    const bootstrapRoleArn = (roleName: string) =>
+      `arn:${Aws.PARTITION}:iam::${Aws.ACCOUNT_ID}:role/cdk-${bootstrapQualifier}-${roleName}-${Aws.ACCOUNT_ID}-${Aws.REGION}`;
+    deployRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'AssumeCdkBootstrapRoles',
+        actions: ['sts:AssumeRole'],
+        resources: [bootstrapRoleArn('deploy-role'), bootstrapRoleArn('file-publishing-role')],
+      })
+    );
 
     new CfnOutput(this, 'DeployRoleArn', { value: deployRole.roleArn });
   }
