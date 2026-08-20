@@ -148,3 +148,64 @@ button {
   align-items: stretch;
   margin: 2rem auto;
 }
+
+.button-primary {
+  background: #0f8b9e;
+  color: #ffffff;
+  border: 1px solid #0f8b9e;
+}
+
+.button-danger {
+  background: #b3261e;
+  color: #ffffff;
+  border: 1px solid #b3261e;
+}
+
+.confirm-dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 1.25rem;
+  max-width: 420px;
+  width: calc(100% - 2rem);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.confirm-dialog::backdrop {
+  background: rgba(15, 33, 31, 0.45);
+}
+
+.confirm-dialog-title {
+  margin: 0 0 0.5rem;
+}
+
+.confirm-dialog-message {
+  margin: 0;
+  color: #57675f;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+/* Bottom sheet on narrow viewports, centered modal (default UA
+   positioning) above that breakpoint. */
+@media (max-width: 480px) {
+  .confirm-dialog {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    inset: auto 0 0 0;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .confirm-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-dialog-actions button {
+    width: 100%;
+  }
+}

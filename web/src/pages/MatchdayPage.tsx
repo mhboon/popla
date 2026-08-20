@@ -10,6 +10,7 @@ import {
   listPlayers,
   recordSetResult,
 } from '../lib/api';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
 
 const ROUNDS = [1, 2, 3, 4];
@@ -27,6 +28,7 @@ export function MatchdayPage() {
   const [error, setError] = useState<string | null>(null);
   const [generatingRound, setGeneratingRound] = useState<number | null>(null);
   const [closing, setClosing] = useState(false);
+  const [confirmingClose, setConfirmingClose] = useState(false);
 
   async function refresh() {
     if (!matchdayId) return;
@@ -141,11 +143,25 @@ export function MatchdayPage() {
         </section>
       ) : (
         readyToClose && (
-          <button type="button" onClick={handleCloseMatchday} disabled={closing}>
+          <button type="button" onClick={() => setConfirmingClose(true)} disabled={closing}>
             {closing ? 'Closing…' : 'Close matchday'}
           </button>
         )
       )}
+
+      <ConfirmDialog
+        open={confirmingClose}
+        title="Close this matchday?"
+        message="This finalizes the day ranking and adds season points for every participant. It can't be undone."
+        confirmLabel="Close matchday"
+        danger
+        busy={closing}
+        onCancel={() => setConfirmingClose(false)}
+        onConfirm={() => {
+          setConfirmingClose(false);
+          handleCloseMatchday();
+        }}
+      />
 
       {ROUNDS.map((round) => {
         const roundMatches = (matchesByRound.get(round) ?? []).sort((a, b) => a.court - b.court);
