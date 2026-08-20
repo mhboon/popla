@@ -170,6 +170,26 @@ form,
   margin: var(--space-4) 0;
 }
 
+/*
+ * Forms mixing short fields with a much taller block (e.g. the matchday
+ * setup fieldset with its multiselect + inline add-participant form)
+ * break under the shared `form` rule above: align-items: flex-end
+ * bottom-aligns the short items to match the tall block's height,
+ * making them look like they landed in the wrong place. This stacks
+ * everything vertically instead, with .inline-form still available for
+ * any single row inside it (e.g. the Date/Tournament-style row).
+ */
+.matchday-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.matchday-form > button {
+  align-self: flex-start;
+}
+
 label {
   display: flex;
   flex-direction: column;

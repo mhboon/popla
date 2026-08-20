@@ -147,19 +147,21 @@ export function MatchdaySetupPage() {
       {activeSeason && <p>Season: {activeSeason.name}</p>}
       {error && <p className="form-error">{error}</p>}
 
-      <form onSubmit={handleSubmit}>
-        <label>
-          Date
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-        </label>
+      <form onSubmit={handleSubmit} className="matchday-form">
+        <div className="inline-form">
+          <label>
+            Date
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </label>
 
-        <label>
-          Tournament style
-          <select value={format} onChange={(e) => setFormat(e.target.value as MatchdayFormat)}>
-            <option value="MEXICANO">Mexicano</option>
-            <option value="AMERICANO">Americano</option>
-          </select>
-        </label>
+          <label>
+            Tournament style
+            <select value={format} onChange={(e) => setFormat(e.target.value as MatchdayFormat)}>
+              <option value="MEXICANO">Mexicano</option>
+              <option value="AMERICANO">Americano</option>
+            </select>
+          </label>
+        </div>
 
         <fieldset>
           <legend>Participants</legend>
