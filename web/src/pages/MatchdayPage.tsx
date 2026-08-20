@@ -13,8 +13,6 @@ import {
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
 
-const ROUNDS = [1, 2, 3, 4];
-
 export function MatchdayPage() {
   const { matchdayId } = useParams<{ matchdayId: string }>();
   const { user } = useAuth();
@@ -26,7 +24,7 @@ export function MatchdayPage() {
   const [ranking, setRanking] = useState<MatchdayResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [generatingRound, setGeneratingRound] = useState<number | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [closing, setClosing] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
 
@@ -57,17 +55,17 @@ export function MatchdayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchdayId]);
 
-  async function handleGenerateRound(round: number) {
+  async function handleGenerateRound() {
     if (!matchdayId) return;
     setError(null);
-    setGeneratingRound(round);
+    setGenerating(true);
     try {
-      await generateRound(idToken, matchdayId, round);
+      await generateRound(idToken, matchdayId);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to generate round ${round}`);
+      setError(err instanceof Error ? err.message : 'Failed to generate the next round');
     } finally {
-      setGeneratingRound(null);
+      setGenerating(false);
     }
   }
 
@@ -98,8 +96,11 @@ export function MatchdayPage() {
     list.push(match);
     matchesByRound.set(match.round, list);
   }
-  const readyToClose =
-    matchesByRound.size === ROUNDS.length && matches.every((m) => m.status === 'COMPLETE');
+  const roundNumbers = [...matchesByRound.keys()].sort((a, b) => a - b);
+  const currentRound = roundNumbers.at(-1) ?? 0;
+  const currentRoundMatches = matchesByRound.get(currentRound) ?? [];
+  const currentRoundComplete =
+    currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
 
   return (
     <div>
@@ -142,10 +143,20 @@ export function MatchdayPage() {
           </table>
         </section>
       ) : (
-        readyToClose && (
-          <button type="button" onClick={() => setConfirmingClose(true)} disabled={closing}>
-            {closing ? 'Closing…' : 'Close matchday'}
-          </button>
+        currentRoundComplete && (
+          <div className="matchday-next-actions">
+            <button type="button" onClick={handleGenerateRound} disabled={generating}>
+              {generating ? 'Generating…' : `Generate round ${currentRound + 1}`}
+            </button>
+            <button
+              type="button"
+              className="button-danger"
+              onClick={() => setConfirmingClose(true)}
+              disabled={closing}
+            >
+              Finish matchday
+            </button>
+          </div>
         )
       )}
 
@@ -163,37 +174,31 @@ export function MatchdayPage() {
         }}
       />
 
-      {ROUNDS.map((round) => {
+      {currentRound === 0 && matchday.status !== 'CLOSED' && (
+        <button type="button" onClick={handleGenerateRound} disabled={generating}>
+          {generating ? 'Generating…' : 'Generate round 1'}
+        </button>
+      )}
+
+      {[...roundNumbers].reverse().map((round) => {
         const roundMatches = (matchesByRound.get(round) ?? []).sort((a, b) => a.court - b.court);
+        const readOnly = round !== currentRound || matchday.status === 'CLOSED';
         return (
           <section key={round}>
             <h2>Round {round}</h2>
-            {roundMatches.length === 0 ? (
-              matchday.status === 'CLOSED' ? (
-                <p>Not played.</p>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleGenerateRound(round)}
-                  disabled={generatingRound !== null}
-                >
-                  {generatingRound === round ? 'Generating…' : `Generate round ${round}`}
-                </button>
-              )
-            ) : (
-              <div className="match-grid">
-                {roundMatches.map((match) => (
-                  <MatchCard
-                    key={`${match.round}-${match.court}`}
-                    match={match}
-                    playerName={playerName}
-                    idToken={idToken}
-                    matchdayId={matchdayId!}
-                    onSaved={refresh}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="match-grid">
+              {roundMatches.map((match) => (
+                <MatchCard
+                  key={`${match.round}-${match.court}`}
+                  match={match}
+                  playerName={playerName}
+                  idToken={idToken}
+                  matchdayId={matchdayId!}
+                  onSaved={refresh}
+                  readOnly={readOnly}
+                />
+              ))}
+            </div>
           </section>
         );
       })}
@@ -207,12 +212,14 @@ function MatchCard({
   idToken,
   matchdayId,
   onSaved,
+  readOnly,
 }: {
   match: Match;
   playerName: (playerId: string) => string;
   idToken: string;
   matchdayId: string;
   onSaved: () => Promise<void>;
+  readOnly: boolean;
 }) {
   const [editing, setEditing] = useState(match.status === 'PENDING');
   const [team1Games, setTeam1Games] = useState(match.team1Games ?? 0);
@@ -281,9 +288,11 @@ function MatchCard({
           <strong>
             {match.team1Games} – {match.team2Games}
           </strong>
-          <button type="button" onClick={() => setEditing(true)}>
-            Edit
-          </button>
+          {!readOnly && (
+            <button type="button" onClick={() => setEditing(true)}>
+              Edit
+            </button>
+          )}
         </div>
       )}
       {error && <p className="form-error">{error}</p>}

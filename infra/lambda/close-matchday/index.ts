@@ -52,7 +52,7 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
   );
   if (matches.length === 0 || matches.some((m) => m.status !== 'COMPLETE')) {
     throw new Error(
-      'All 4 rounds must be generated and every set recorded before closing'
+      'At least one round must be generated, and every set recorded, before closing'
     );
   }
 

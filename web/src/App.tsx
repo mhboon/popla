@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ParticipantsPage } from './pages/ParticipantsPage';
 import { SeasonsPage } from './pages/SeasonsPage';
 import { SeasonRankingPage } from './pages/SeasonRankingPage';
+import { MatchdaysPage } from './pages/MatchdaysPage';
 import { MatchdaySetupPage } from './pages/MatchdaySetupPage';
 import { MatchdayPage } from './pages/MatchdayPage';
 
@@ -43,6 +44,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <SeasonRankingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/seasons/:seasonId/matchdays"
+            element={
+              <ProtectedRoute>
+                <MatchdaysPage />
               </ProtectedRoute>
             }
           />
