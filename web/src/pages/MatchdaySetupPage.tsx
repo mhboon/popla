@@ -9,6 +9,7 @@ import {
   listSeasons,
   updateMatchday,
 } from '../lib/api';
+import { sortByName } from '../lib/sort';
 import type { MatchdayFormat, Player, Season } from '../types/graphql';
 
 export function MatchdaySetupPage() {
@@ -38,8 +39,7 @@ export function MatchdaySetupPage() {
       matchdayId ? listMatchdayParticipantIds(idToken, matchdayId) : Promise.resolve<string[]>([]),
     ])
       .then(([playerList, seasons, matchday, participantIds]) => {
-        playerList.sort((a, b) => a.displayName.localeCompare(b.displayName));
-        setPlayers(playerList);
+        setPlayers(sortByName(playerList));
         setActiveSeason(seasons.find((s) => s.status === 'ACTIVE') ?? null);
         if (matchday) {
           if (matchday.status !== 'SETUP') {
@@ -145,20 +145,28 @@ export function MatchdaySetupPage() {
         </fieldset>
 
         <fieldset>
-          <legend>
-            Participants ({count} selected{validCount ? '' : ' — must be a multiple of 4'})
-          </legend>
+          <legend>Participants</legend>
+          <p className={`participant-count${validCount ? ' participant-count-valid' : ''}`}>
+            <span className="participant-count-badge">{count}</span>
+            {validCount ? ' selected' : ' selected — must be a multiple of 4'}
+          </p>
           <div className="participant-grid">
-            {players.map((player) => (
-              <label key={player.playerId} className="participant-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selected.has(player.playerId)}
-                  onChange={() => toggle(player.playerId)}
-                />
-                {player.displayName}
-              </label>
-            ))}
+            {players.map((player) => {
+              const isSelected = selected.has(player.playerId);
+              return (
+                <label
+                  key={player.playerId}
+                  className={`participant-chip${isSelected ? ' participant-chip-selected' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggle(player.playerId)}
+                  />
+                  {player.displayName}
+                </label>
+              );
+            })}
           </div>
         </fieldset>
 

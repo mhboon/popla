@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../lib/useAuth';
 import { createPlayer, listPlayers, updatePlayer } from '../lib/api';
+import { sortByName } from '../lib/sort';
 import type { Player } from '../types/graphql';
 
 const emptyForm = { displayName: '', phone: '', email: '' };
@@ -23,9 +24,7 @@ export function ParticipantsPage() {
   async function refresh() {
     setLoading(true);
     try {
-      const result = await listPlayers(idToken);
-      result.sort((a, b) => a.displayName.localeCompare(b.displayName));
-      setPlayers(result);
+      setPlayers(sortByName(await listPlayers(idToken)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load participants');
     } finally {

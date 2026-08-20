@@ -94,15 +94,63 @@ button {
 }
 
 .participant-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.participant-checkbox {
+/*
+ * Fixed-size toggle chips, not a checkbox grid: selection is shown with
+ * an inset box-shadow (not a border-width/padding change), so nothing
+ * reflows when a chip is toggled — that reflow was the reported "shift"
+ * bug.
+ */
+.participant-chip {
+  flex: 0 0 auto;
   flex-direction: row;
   align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  line-height: 1.2;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #d7ddd8;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 0 transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s ease, box-shadow 0.1s ease;
+}
+
+.participant-chip-selected {
+  background: #e3f6f2;
+  box-shadow: inset 0 0 0 2px #0f8b9e;
+}
+
+.participant-count {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  color: #57675f;
+}
+
+.participant-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #57675f;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.participant-count-valid .participant-count-badge {
+  background: #0f8b9e;
 }
 
 .match-grid {
