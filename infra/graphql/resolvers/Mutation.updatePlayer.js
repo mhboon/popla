@@ -11,10 +11,11 @@ export function request(ctx) {
   const expressionValues = {};
 
   for (const field of EDITABLE_FIELDS) {
-    if (fields[field] === undefined) continue;
-    setClauses.push(`#${field} = :${field}`);
-    expressionNames[`#${field}`] = field;
-    expressionValues[`:${field}`] = fields[field];
+    if (fields[field] !== undefined) {
+      setClauses.push(`#${field} = :${field}`);
+      expressionNames[`#${field}`] = field;
+      expressionValues[`:${field}`] = fields[field];
+    }
   }
 
   if (setClauses.length === 0) {
