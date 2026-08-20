@@ -11,7 +11,7 @@ import type {
 
 const PLAYER_FIELDS = 'playerId displayName phone email createdAt';
 const SEASON_FIELDS = 'seasonId name status startDate closedAt';
-const MATCHDAY_FIELDS = 'matchdayId seasonId date format status';
+const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status';
 const MATCH_FIELDS = 'matchdayId round court team1PlayerIds team2PlayerIds team1Games team2Games status';
 const MATCHDAY_RESULT_FIELDS = 'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints';
 const SEASON_STANDING_FIELDS = 'seasonId playerId totalPoints matchdaysPlayed';
@@ -108,12 +108,18 @@ export function getSeasonStanding(idToken: string, seasonId: string) {
 
 export function createMatchday(
   idToken: string,
-  input: { seasonId: string; date: string; format: MatchdayFormat; participantIds: string[] }
+  input: {
+    seasonId: string;
+    date: string;
+    startTime?: string;
+    format: MatchdayFormat;
+    participantIds: string[];
+  }
 ) {
   return graphqlRequest<{ createMatchday: Matchday }>(
     idToken,
-    `mutation($seasonId: ID!, $date: AWSDate!, $format: MatchdayFormat!, $participantIds: [ID!]!) {
-      createMatchday(seasonId: $seasonId, date: $date, format: $format, participantIds: $participantIds) { ${MATCHDAY_FIELDS} }
+    `mutation($seasonId: ID!, $date: AWSDate!, $startTime: AWSTime, $format: MatchdayFormat!, $participantIds: [ID!]!) {
+      createMatchday(seasonId: $seasonId, date: $date, startTime: $startTime, format: $format, participantIds: $participantIds) { ${MATCHDAY_FIELDS} }
     }`,
     input
   ).then((d) => d.createMatchday);
@@ -140,14 +146,15 @@ export function updateMatchday(
   input: {
     matchdayId: string;
     date?: string;
+    startTime?: string;
     format?: MatchdayFormat;
     participantIds?: string[];
   }
 ) {
   return graphqlRequest<{ updateMatchday: Matchday }>(
     idToken,
-    `mutation($matchdayId: ID!, $date: AWSDate, $format: MatchdayFormat, $participantIds: [ID!]) {
-      updateMatchday(matchdayId: $matchdayId, date: $date, format: $format, participantIds: $participantIds) { ${MATCHDAY_FIELDS} }
+    `mutation($matchdayId: ID!, $date: AWSDate, $startTime: AWSTime, $format: MatchdayFormat, $participantIds: [ID!]) {
+      updateMatchday(matchdayId: $matchdayId, date: $date, startTime: $startTime, format: $format, participantIds: $participantIds) { ${MATCHDAY_FIELDS} }
     }`,
     input
   ).then((d) => d.updateMatchday);
@@ -177,13 +184,13 @@ export function listMatches(idToken: string, matchdayId: string) {
   ).then((d) => d.listMatches);
 }
 
-export function generateRound(idToken: string, matchdayId: string, round: number) {
+export function generateRound(idToken: string, matchdayId: string) {
   return graphqlRequest<{ generateRound: Match[] }>(
     idToken,
-    `mutation($matchdayId: ID!, $round: Int!) {
-      generateRound(matchdayId: $matchdayId, round: $round) { ${MATCH_FIELDS} }
+    `mutation($matchdayId: ID!) {
+      generateRound(matchdayId: $matchdayId) { ${MATCH_FIELDS} }
     }`,
-    { matchdayId, round }
+    { matchdayId }
   ).then((d) => d.generateRound);
 }
 

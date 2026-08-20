@@ -39,6 +39,11 @@ type Matchday {
   matchdayId: ID!
   seasonId: ID!
   date: AWSDate!
+  # Optional time-of-day the matchday starts. Kept separate from `date`
+  # (rather than widening date to AWSDateTime) so existing matchdays
+  # don't need a data migration — AppSync's AWSDateTime scalar validates
+  # format on read too, and pre-existing rows only have a plain date.
+  startTime: AWSTime
   format: MatchdayFormat!
   status: MatchdayStatus!
 }
@@ -113,6 +118,7 @@ type Mutation {
   createMatchday(
     seasonId: ID!
     date: AWSDate!
+    startTime: AWSTime
     format: MatchdayFormat!
     participantIds: [ID!]!
   ): Matchday! @aws_auth(cognito_groups: ["Admins"])
@@ -123,11 +129,15 @@ type Mutation {
   updateMatchday(
     matchdayId: ID!
     date: AWSDate
+    startTime: AWSTime
     format: MatchdayFormat
     participantIds: [ID!]
   ): Matchday! @aws_auth(cognito_groups: ["Admins"])
 
-  generateRound(matchdayId: ID!, round: Int!): [Match!]!
+  # Generates the next round (1 + the highest round already generated for
+  # this matchday, or 1 if none yet) — the caller doesn't pick a round
+  # number, since there's no fixed round count (see SPEC.md).
+  generateRound(matchdayId: ID!): [Match!]!
     @aws_auth(cognito_groups: ["Admins"])
 
   recordSetResult(

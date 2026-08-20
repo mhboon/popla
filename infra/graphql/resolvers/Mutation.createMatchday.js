@@ -1,7 +1,7 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-  const { seasonId, date, format, participantIds } = ctx.args;
+  const { seasonId, date, startTime, format, participantIds } = ctx.args;
 
   if (participantIds.length === 0 || participantIds.length % 4 !== 0) {
     util.error(
@@ -13,17 +13,17 @@ export function request(ctx) {
   const matchdayId = util.autoId();
   ctx.stash.matchdayId = matchdayId;
 
+  const matchdayItem = { seasonId, date, format, status: 'SETUP' };
+  if (startTime !== undefined && startTime !== null) {
+    matchdayItem.startTime = startTime;
+  }
+
   const transactItems = [
     {
       table: 'PoplaMatchdays',
       operation: 'PutItem',
       key: util.dynamodb.toMapValues({ matchdayId }),
-      attributeValues: util.dynamodb.toMapValues({
-        seasonId,
-        date,
-        format,
-        status: 'SETUP',
-      }),
+      attributeValues: util.dynamodb.toMapValues(matchdayItem),
     },
     ...participantIds.map((playerId) => ({
       table: 'PoplaMatchdayParticipants',
@@ -44,6 +44,7 @@ export function response(ctx) {
     matchdayId: ctx.stash.matchdayId,
     seasonId: ctx.args.seasonId,
     date: ctx.args.date,
+    startTime: ctx.args.startTime ?? null,
     format: ctx.args.format,
     status: 'SETUP',
   };

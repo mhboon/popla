@@ -13,12 +13,22 @@ const MATCHES_TABLE = process.env.MATCHES_TABLE!;
 const RESULTS_TABLE = process.env.MATCHDAY_RESULTS_TABLE!;
 const STANDINGS_TABLE = process.env.SEASON_STANDINGS_TABLE!;
 
-// Offsets the (small, ~ +/-24) per-matchday game differential into a
-// positive range so it can be tacked onto setsWon in a single sortable
-// number: rankScore = setsWon * 100000 + (gameDiff + OFFSET). Queried
-// descending on the byMatchdayRank GSI, this yields the day ranking
-// (sets won, then game diff) without any resolver-side sorting.
+// Encodes the 3-level day ranking (game diff, then games won, then sets
+// won — see SPEC.md's Day Ranking) into a single sortable number:
+// rankScore = (gameDiff + OFFSET) * GAMES_WON_SPAN * SETS_WON_SPAN
+//           + gamesWon * SETS_WON_SPAN
+//           + setsWon
+// Queried descending on the byMatchdayRank GSI, this yields the day
+// ranking directly, no resolver-side sorting needed. Each span is
+// generous headroom for an unusually long matchday (rounds are
+// open-ended, see SPEC.md): OFFSET=5000 covers |gameDiff| up to ~800
+// rounds, GAMES_WON_SPAN=100000 covers gamesWon up to ~16000 rounds,
+// SETS_WON_SPAN=10000 covers setsWon up to 10000 rounds — all while the
+// combined value (worst case ~1e13) stays well under
+// Number.MAX_SAFE_INTEGER (~9e15).
 const RANK_SCORE_GAME_DIFF_OFFSET = 5000;
+const RANK_SCORE_GAMES_WON_SPAN = 100000;
+const RANK_SCORE_SETS_WON_SPAN = 10000;
 
 interface CloseMatchdayArgs {
   matchdayId: string;
@@ -52,7 +62,7 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
   );
   if (matches.length === 0 || matches.some((m) => m.status !== 'COMPLETE')) {
     throw new Error(
-      'All 4 rounds must be generated and every set recorded before closing'
+      'At least one round must be generated, and every set recorded, before closing'
     );
   }
 
@@ -87,8 +97,11 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
 
   const participantCount = stats.size;
   const ranked = [...stats.entries()].sort((a, b) => {
-    if (b[1].setsWon !== a[1].setsWon) return b[1].setsWon - a[1].setsWon;
-    return b[1].gamesWon - b[1].gamesLost - (a[1].gamesWon - a[1].gamesLost);
+    const diffA = a[1].gamesWon - a[1].gamesLost;
+    const diffB = b[1].gamesWon - b[1].gamesLost;
+    if (diffB !== diffA) return diffB - diffA;
+    if (b[1].gamesWon !== a[1].gamesWon) return b[1].gamesWon - a[1].gamesWon;
+    return b[1].setsWon - a[1].setsWon;
   });
 
   const transactItems: NonNullable<
@@ -105,11 +118,35 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
     },
   ];
 
+  // Standard competition ranking ("1224"): players tied on gameDiff,
+  // gamesWon, and setsWon all share the same rank (and so the same
+  // season points) instead of being split across consecutive ranks by
+  // array position; the next distinct rank accounts for the size of the
+  // tied group (two players tied for rank 2 pushes the next player to
+  // rank 4, not 3), same as the `index + 1` formula naturally gives once
+  // ties are detected — see the `tiedWithPrevious` check below.
+  let previousRank = 0;
+  let previousGameDiff: number | null = null;
+  let previousGamesWon: number | null = null;
+  let previousSetsWon: number | null = null;
+
   ranked.forEach(([playerId, s], index) => {
-    const rank = index + 1;
     const gameDiff = s.gamesWon - s.gamesLost;
+    const tiedWithPrevious =
+      gameDiff === previousGameDiff &&
+      s.gamesWon === previousGamesWon &&
+      s.setsWon === previousSetsWon;
+    const rank = tiedWithPrevious ? previousRank : index + 1;
+    previousRank = rank;
+    previousGameDiff = gameDiff;
+    previousGamesWon = s.gamesWon;
+    previousSetsWon = s.setsWon;
+
     const seasonPoints = rank === 1 ? participantCount : participantCount - rank;
-    const rankScore = s.setsWon * 100000 + (gameDiff + RANK_SCORE_GAME_DIFF_OFFSET);
+    const rankScore =
+      (gameDiff + RANK_SCORE_GAME_DIFF_OFFSET) * RANK_SCORE_GAMES_WON_SPAN * RANK_SCORE_SETS_WON_SPAN +
+      s.gamesWon * RANK_SCORE_SETS_WON_SPAN +
+      s.setsWon;
 
     transactItems.push({
       Put: {

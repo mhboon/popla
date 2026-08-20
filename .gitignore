@@ -12,12 +12,14 @@ infra/**/*.js
 infra/**/*.d.ts
 !infra/graphql/resolvers/*.js
 infra/**/*.tsbuildinfo
+web/**/*.tsbuildinfo
 web/dist/
 
 # env / local secrets
 .env
 .env.*
 !.env.example
+.local/
 
 # editor / OS
 .DS_Store

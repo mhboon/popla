@@ -3,17 +3,19 @@ import { util } from '@aws-appsync/utils';
 const EDITABLE_FIELDS = ['displayName', 'phone', 'email'];
 
 export function request(ctx) {
-  const { playerId, ...fields } = ctx.args;
+  const playerId = ctx.args.playerId;
+  const fields = ctx.args;
 
   const setClauses = [];
   const expressionNames = {};
   const expressionValues = {};
 
   for (const field of EDITABLE_FIELDS) {
-    if (fields[field] === undefined) continue;
-    setClauses.push(`#${field} = :${field}`);
-    expressionNames[`#${field}`] = field;
-    expressionValues[`:${field}`] = fields[field];
+    if (fields[field] !== undefined) {
+      setClauses.push(`#${field} = :${field}`);
+      expressionNames[`#${field}`] = field;
+      expressionValues[`:${field}`] = fields[field];
+    }
   }
 
   if (setClauses.length === 0) {

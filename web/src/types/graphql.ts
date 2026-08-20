@@ -23,6 +23,7 @@ export interface Matchday {
   matchdayId: string;
   seasonId: string;
   date: string;
+  startTime?: string | null;
   format: MatchdayFormat;
   status: MatchdayStatus;
 }

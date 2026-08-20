@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
-import { getSeason, getSeasonStanding, listPlayers } from '../lib/api';
+import { closeSeason, getSeason, getSeasonStanding, listPlayers, listSeasons, reopenSeason } from '../lib/api';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { assignCompetitionRank } from '../lib/ranking';
 import type { Player, Season, SeasonStanding } from '../types/graphql';
 
 export function SeasonRankingPage() {
@@ -10,55 +12,154 @@ export function SeasonRankingPage() {
   const idToken = user!.idToken;
 
   const [season, setSeason] = useState<Season | null>(null);
+  const [hasOtherActiveSeason, setHasOtherActiveSeason] = useState(false);
   const [standings, setStandings] = useState<SeasonStanding[]>([]);
   const [players, setPlayers] = useState<Map<string, Player>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+
+  async function refresh() {
+    if (!seasonId) return;
+    setError(null);
+    try {
+      const [s, allSeasons, standing, playerList] = await Promise.all([
+        getSeason(idToken, seasonId),
+        listSeasons(idToken),
+        getSeasonStanding(idToken, seasonId),
+        listPlayers(idToken),
+      ]);
+      setSeason(s);
+      setHasOtherActiveSeason(allSeasons.some((x) => x.status === 'ACTIVE' && x.seasonId !== seasonId));
+      setStandings(standing);
+      setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load season');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    if (!seasonId) return;
-    Promise.all([getSeason(idToken, seasonId), getSeasonStanding(idToken, seasonId), listPlayers(idToken)])
-      .then(([s, standing, playerList]) => {
-        setSeason(s);
-        setStandings(standing);
-        setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load ranking'))
-      .finally(() => setLoading(false));
+    refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seasonId]);
+
+  async function handleClose() {
+    if (!seasonId) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await closeSeason(idToken, seasonId);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to close season');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReopen() {
+    if (!seasonId) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await reopenSeason(idToken, seasonId);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reopen season');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (loading) return <p>Loading…</p>;
   if (error) return <p className="form-error">{error}</p>;
   if (!season) return <p className="form-error">Season not found.</p>;
 
+  const ranked = assignCompetitionRank(standings, (a, b) => a.totalPoints === b.totalPoints);
+
   return (
     <div>
-      <h1>{season.name} — season ranking</h1>
-      {standings.length === 0 ? (
-        <p>No matchdays have been closed yet this season.</p>
-      ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Player</th>
-              <th>Points</th>
-              <th>Matchdays played</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standings.map((standing, index) => (
-              <tr key={standing.playerId}>
-                <td>{index + 1}</td>
-                <td>{players.get(standing.playerId)?.displayName ?? standing.playerId}</td>
-                <td>{standing.totalPoints}</td>
-                <td>{standing.matchdaysPlayed}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <h1>{season.name}</h1>
+      <p>
+        Started {season.startDate} ·{' '}
+        <span className={`status-badge status-${season.status.toLowerCase()}`}>{season.status}</span>
+      </p>
+      {error && <p className="form-error">{error}</p>}
+
+      {(season.status === 'ACTIVE' || season.status === 'CLOSED') && (
+        <div className="detail-actions">
+          {season.status === 'ACTIVE' && (
+            <button
+              type="button"
+              className="button-danger"
+              onClick={() => setConfirmingClose(true)}
+              disabled={busy}
+            >
+              Close season
+            </button>
+          )}
+          {season.status === 'CLOSED' && (
+            <button
+              type="button"
+              className="button-primary"
+              onClick={handleReopen}
+              disabled={busy || hasOtherActiveSeason}
+              title={hasOtherActiveSeason ? 'Close the active season first' : undefined}
+            >
+              {busy ? 'Reopening…' : 'Reopen season'}
+            </button>
+          )}
+        </div>
       )}
+
+      <ConfirmDialog
+        open={confirmingClose}
+        title="Close this season?"
+        message={`Closing "${season.name}" finalizes its ranking. It stays viewable, and you can reopen it later if the active season slot is free.`}
+        confirmLabel="Close season"
+        danger
+        busy={busy}
+        onCancel={() => setConfirmingClose(false)}
+        onConfirm={() => {
+          setConfirmingClose(false);
+          handleClose();
+        }}
+      />
+
+      <section>
+        <h2>Ranking</h2>
+        {standings.length === 0 ? (
+          <p>No matchdays have been closed yet this season.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Player</th>
+                  <th>Points</th>
+                  <th>Matchdays played</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranked.map((standing) => (
+                  <tr key={standing.playerId}>
+                    <td>
+                      <span className="scoreboard-chip">{standing.rank}</span>
+                    </td>
+                    <td>{players.get(standing.playerId)?.displayName ?? standing.playerId}</td>
+                    <td className="num">{standing.totalPoints}</td>
+                    <td className="num">{standing.matchdaysPlayed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -26,8 +26,11 @@ longer-running "season" ranking.
   valid/likely upper case).
 - Format: each matchday is designated as either **Mexicano** or
   **Americano** at creation time (see Match Generation below).
-- Structure: a matchday consists of exactly **4 rounds**. Each round, all N
-  participants are split across N/4 courts, and each court plays one set.
+- Structure: a matchday consists of **one or more rounds** — there's no
+  fixed count. Each round, all N participants are split across N/4
+  courts, and each court plays one set. After a round's sets are all
+  recorded, the admin decides whether to generate another round or end
+  (close) the matchday.
 - Set scoring: played to 6 games. No tiebreak at 6-6 (does not apply — see
   below), and no requirement to win by 2 games. First to 6 games wins the
   set, e.g. a set can validly end 6-5.
@@ -45,8 +48,9 @@ Two supported formats, selectable per matchday:
    one court, ranks 5–8 to the next, and so on.
 4. Within each group of 4, the two teams (partner/opponent assignment) are
    randomized — not a fixed seeding rule.
-5. Repeat steps 2–4 for rounds 2, 3, and 4 (re-rank → re-bucket → randomize
-   within bucket each time).
+5. Repeat steps 2–4 for each subsequent round the admin generates
+   (re-rank → re-bucket → randomize within bucket each time), until the
+   admin ends the matchday.
 
 **Americano** (fully random):
 - Every round, all N participants are randomly shuffled into courts and
@@ -56,12 +60,31 @@ Two supported formats, selectable per matchday:
 ### Day Ranking (within a matchday)
 
 Participants are ranked at the end of a matchday by, in order:
-1. Number of sets won (descending).
-2. Game differential: games won minus games lost (descending).
+1. Game differential: games won minus games lost (descending). This is
+   primary rather than raw games won specifically so that losses count
+   against a player, not just wins for them — see the first example
+   below for why that distinction matters.
+2. Total games won (descending) — **not** sets won. A player who wins
+   fewer sets but more total games (e.g. several close losses) can
+   outrank a player who wins more sets by lopsided margins.
+3. Sets won (descending).
 
-Example: a player who wins sets 6-0, 6-0, 6-0, 6-0 outranks a player who
-wins sets 6-1, 6-1, 6-1, 6-1 (both won all 4 sets, but the first has a
-better game differential).
+Example (why game differential, not raw games won, must be primary): a
+player who loses all 4 sets 5-6 has 0 sets won but 20 games won (5 × 4)
+against 24 games lost, for a game differential of -4. A player who wins
+3 sets 6-0 and loses 1 set 0-6 has 3 sets won and only 18 games won, but
+a game differential of +12. Ranking by raw games won alone would put the
+0-3 player above the 3-1 player, which is clearly wrong — game
+differential correctly ranks the 3-1 player first.
+
+Example (why total games won, not sets won, is the next tiebreaker,
+when game differential ties): a player who wins sets 6-4 and 4-6 has 1
+set won, 10 games won, 10 games lost, and a game differential of 0. A
+player who wins sets 6-0 and 0-6 also has 1 set won, but only 6 games
+won, 6 games lost, and the same game differential of 0. Sets won can't
+break this tie (both 1-1) — games won can, and correctly ranks the
+first player (who played two competitive, closely-contested sets)
+above the second (who played two lopsided sets that canceled out).
 
 ### Season Points
 
