@@ -73,7 +73,11 @@ npm run dev
 
 This repo is public, so CI deploys via GitHub's OIDC provider assuming an
 IAM role — never via stored AWS access keys, and nothing account-specific
-ever gets committed.
+ever gets committed. That role only has `sts:AssumeRole` on the roles
+`cdk bootstrap` already created in your account (see
+`infra/lib/github-oidc-stack.ts`), not `AdministratorAccess` — so
+`npx cdk bootstrap` (above) must have already been run in the target
+account/region before step 1 below.
 
 1. Bootstrap the OIDC trust + deploy role once, locally, with your own AWS
    credentials:
