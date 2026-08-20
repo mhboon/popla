@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import { closeSeason, getSeason, getSeasonStanding, listPlayers, listSeasons, reopenSeason } from '../lib/api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { assignCompetitionRank } from '../lib/ranking';
 import type { Player, Season, SeasonStanding } from '../types/graphql';
 
 export function SeasonRankingPage() {
@@ -77,19 +78,7 @@ export function SeasonRankingPage() {
   if (error) return <p className="form-error">{error}</p>;
   if (!season) return <p className="form-error">Season not found.</p>;
 
-  // Standard competition ranking: players tied on totalPoints share the
-  // same "#" instead of being split across consecutive numbers purely by
-  // array position (see close-matchday's identical fix for matchday
-  // ranking — same underlying bug, same convention).
-  let previousRank = 0;
-  let previousPoints: number | null = null;
-  const ranked = standings.map((standing, index) => {
-    const tied = standing.totalPoints === previousPoints;
-    const rank = tied ? previousRank : index + 1;
-    previousRank = rank;
-    previousPoints = standing.totalPoints;
-    return { ...standing, rank };
-  });
+  const ranked = assignCompetitionRank(standings, (a, b) => a.totalPoints === b.totalPoints);
 
   return (
     <div>
