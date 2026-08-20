@@ -108,4 +108,23 @@ jobs:
       - name: Deploy web stack
         if: steps.check.outputs.configured == 'true'
         working-directory: infra
-        run: npx cdk deploy PoplaWebStack --require-approval never
+        run: npx cdk deploy PoplaWebStack --require-approval never --outputs-file cdk-outputs-web.json
+
+      - name: Read web stack outputs
+        if: steps.check.outputs.configured == 'true'
+        id: web-outputs
+        working-directory: infra
+        run: echo "url=$(jq -r .PoplaWebStack.SiteUrl cdk-outputs-web.json)" >> "$GITHUB_OUTPUT"
+
+      # Catches what a plain HTTP check can't: index.html and its JS bundle
+      # can both return 200 while the app itself throws on load and never
+      # renders (see #28 — a duplicate React copy left the site a blank
+      # white page with a fully healthy HTTP response). This actually runs
+      # the page in a browser and checks the login form renders cleanly.
+      - name: Install Playwright's Chromium
+        if: steps.check.outputs.configured == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Post-deploy smoke test
+        if: steps.check.outputs.configured == 'true'
+        run: node scripts/smoke-test.mjs "${{ steps.web-outputs.outputs.url }}"
