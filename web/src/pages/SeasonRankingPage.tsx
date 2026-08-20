@@ -3,7 +3,9 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import { closeSeason, getSeason, getSeasonStanding, listPlayers, listSeasons, reopenSeason } from '../lib/api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
+import { formatSeasonRankingShare } from '../lib/shareFormat';
 import type { Player, Season, SeasonStanding } from '../types/graphql';
 
 export function SeasonRankingPage() {
@@ -79,6 +81,7 @@ export function SeasonRankingPage() {
   if (!season) return <p className="form-error">Season not found.</p>;
 
   const ranked = assignCompetitionRank(standings, (a, b) => a.totalPoints === b.totalPoints);
+  const playerName = (playerId: string) => players.get(playerId)?.displayName ?? playerId;
 
   return (
     <div>
@@ -130,7 +133,15 @@ export function SeasonRankingPage() {
       />
 
       <section>
-        <h2>Ranking</h2>
+        <div className="section-heading">
+          <h2>Ranking</h2>
+          {standings.length > 0 && (
+            <ShareButton
+              title="Popla Cup ranking"
+              text={formatSeasonRankingShare(season, ranked, playerName)}
+            />
+          )}
+        </div>
         {standings.length === 0 ? (
           <p>No matchdays have been closed yet this season.</p>
         ) : (
@@ -150,7 +161,7 @@ export function SeasonRankingPage() {
                     <td>
                       <span className="scoreboard-chip">{standing.rank}</span>
                     </td>
-                    <td>{players.get(standing.playerId)?.displayName ?? standing.playerId}</td>
+                    <td>{playerName(standing.playerId)}</td>
                     <td className="num">{standing.totalPoints}</td>
                     <td className="num">{standing.matchdaysPlayed}</td>
                   </tr>

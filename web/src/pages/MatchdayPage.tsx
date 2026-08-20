@@ -11,8 +11,10 @@ import {
   recordSetResult,
 } from '../lib/api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
 import { formatMatchdayWhen } from '../lib/matchday';
+import { formatMatchdayRankingShare, formatRoundShare } from '../lib/shareFormat';
 import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
 
 // A set is played to 6 games with no tiebreak (SPEC.md) — 0-6 is the full
@@ -170,6 +172,10 @@ export function MatchdayPage() {
   // an already-closed matchday.
   const currentRoundComplete =
     isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
+  const dayStandingsSoFar = assignCompetitionRank(
+    standingsSoFar(matches),
+    (a, b) => a.gameDiff === b.gameDiff && a.gamesWon === b.gamesWon && a.setsWon === b.setsWon
+  );
 
   return (
     <div>
@@ -258,9 +264,15 @@ export function MatchdayPage() {
             const readOnly = round !== currentRound || matchday.status === 'CLOSED';
             return (
               <section key={round}>
-                <h2>
-                  Round <span className="scoreboard-chip">{round}</span>
-                </h2>
+                <div className="section-heading">
+                  <h2>
+                    Round <span className="scoreboard-chip">{round}</span>
+                  </h2>
+                  <ShareButton
+                    title="Popla Cup matches"
+                    text={formatRoundShare(matchday, round, roundMatches, playerName)}
+                  />
+                </div>
                 <div className="match-grid">
                   {roundMatches.map((match) => (
                     <MatchCard
@@ -281,42 +293,56 @@ export function MatchdayPage() {
       ) : (
         <section>
           {matchday.status === 'CLOSED' ? (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Player</th>
-                    <th>Game diff</th>
-                    <th>Games won</th>
-                    <th>Sets won</th>
-                    <th>Season points</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ranking.map((result) => (
-                    <tr key={result.playerId}>
-                      <td>
-                        <span className="scoreboard-chip">{result.rank}</span>
-                      </td>
-                      <td>{playerName(result.playerId)}</td>
-                      <td className="num">{result.gameDiff}</td>
-                      <td className="num">{result.gamesWon}</td>
-                      <td className="num">{result.setsWon}</td>
-                      <td className="num">{result.seasonPoints}</td>
+            <>
+              <div className="share-row">
+                <ShareButton
+                  title="Popla Cup ranking"
+                  text={formatMatchdayRankingShare(matchday, ranking, playerName, true)}
+                />
+              </div>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Player</th>
+                      <th>Game diff</th>
+                      <th>Games won</th>
+                      <th>Sets won</th>
+                      <th>Season points</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {ranking.map((result) => (
+                      <tr key={result.playerId}>
+                        <td>
+                          <span className="scoreboard-chip">{result.rank}</span>
+                        </td>
+                        <td>{playerName(result.playerId)}</td>
+                        <td className="num">{result.gameDiff}</td>
+                        <td className="num">{result.gamesWon}</td>
+                        <td className="num">{result.setsWon}</td>
+                        <td className="num">{result.seasonPoints}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : currentRound === 0 ? (
             <p>No results yet — the ranking fills in once round 1's scores are recorded.</p>
           ) : (
             <>
-              <p className="participant-count">
-                Standings through round <span className="scoreboard-chip">{currentRound}</span> — not
-                final until the matchday closes.
-              </p>
+              <div className="section-heading">
+                <p className="participant-count">
+                  Standings through round <span className="scoreboard-chip">{currentRound}</span> — not
+                  final until the matchday closes.
+                </p>
+                <ShareButton
+                  title="Popla Cup ranking"
+                  text={formatMatchdayRankingShare(matchday, dayStandingsSoFar, playerName, false)}
+                />
+              </div>
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
@@ -329,11 +355,7 @@ export function MatchdayPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {assignCompetitionRank(
-                      standingsSoFar(matches),
-                      (a, b) =>
-                        a.gameDiff === b.gameDiff && a.gamesWon === b.gamesWon && a.setsWon === b.setsWon
-                    ).map((standing) => (
+                    {dayStandingsSoFar.map((standing) => (
                       <tr key={standing.playerId}>
                         <td>
                           <span className="scoreboard-chip">{standing.rank}</span>
