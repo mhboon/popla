@@ -7,10 +7,11 @@ interface RankedDayStanding {
   gameDiff: number;
   gamesWon: number;
   setsWon: number;
+  // Only known once the matchday closes — the in-progress "so far" standing
+  // has no season points to report yet, so this stays unset there.
+  seasonPoints?: number;
 }
 
-// Deliberately omits season points — shared matchday rankings are meant to
-// stand on their own (a day's result), not reveal season standings.
 export function formatMatchdayRankingShare(
   matchday: Matchday,
   standings: RankedDayStanding[],
@@ -18,10 +19,10 @@ export function formatMatchdayRankingShare(
   final: boolean
 ): string {
   const header = `Popla Cup — ${formatMatchdayWhen(matchday)} ranking${final ? '' : ' (so far)'}`;
-  const lines = standings.map(
-    (s) =>
-      `${s.rank}. ${playerName(s.playerId)} — ${s.gameDiff >= 0 ? '+' : ''}${s.gameDiff} diff, ${s.gamesWon} games, ${s.setsWon} sets`
-  );
+  const lines = standings.map((s) => {
+    const line = `${s.rank}. ${playerName(s.playerId)} — ${s.gameDiff >= 0 ? '+' : ''}${s.gameDiff} diff, ${s.gamesWon} games, ${s.setsWon} sets`;
+    return s.seasonPoints != null ? `${line}, ${s.seasonPoints} season pts` : line;
+  });
   return [header, '', ...lines].join('\n');
 }
 
