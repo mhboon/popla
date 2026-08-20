@@ -24,6 +24,7 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const seasonsTable = new dynamodb.Table(this, 'SeasonsTable', {
@@ -31,6 +32,7 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'seasonId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const matchdaysTable = new dynamodb.Table(this, 'MatchdaysTable', {
@@ -38,6 +40,7 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'matchdayId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
     matchdaysTable.addGlobalSecondaryIndex({
       indexName: 'bySeasonId',
@@ -54,6 +57,7 @@ export class PoplaBackendStack extends Stack {
         sortKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
         removalPolicy: RemovalPolicy.RETAIN,
+        pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       }
     );
 
@@ -63,6 +67,7 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'roundCourt', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const matchdayResultsTable = new dynamodb.Table(this, 'MatchdayResultsTable', {
@@ -71,6 +76,7 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
     matchdayResultsTable.addGlobalSecondaryIndex({
       indexName: 'byMatchdayRank',
@@ -84,6 +90,7 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
     seasonStandingsTable.addGlobalSecondaryIndex({
       indexName: 'bySeasonPoints',
