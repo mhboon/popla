@@ -65,7 +65,7 @@ export function LoginPage() {
           />
         </label>
         {error && <p className="form-error">{error}</p>}
-        <button type="submit" disabled={submitting}>
+        <button type="submit" className="button-primary" disabled={submitting}>
           {submitting ? 'Setting password…' : 'Set password and sign in'}
         </button>
       </form>
@@ -76,9 +76,9 @@ export function LoginPage() {
     <form onSubmit={handleLogin} className="auth-form">
       <h1>Sign in</h1>
       <label>
-        Email
+        Username
         <input
-          type="email"
+          type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoComplete="username"
@@ -96,7 +96,7 @@ export function LoginPage() {
         />
       </label>
       {error && <p className="form-error">{error}</p>}
-      <button type="submit" disabled={submitting}>
+      <button type="submit" className="button-primary" disabled={submitting}>
         {submitting ? 'Signing in…' : 'Sign in'}
       </button>
     </form>

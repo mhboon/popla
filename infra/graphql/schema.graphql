@@ -127,7 +127,10 @@ type Mutation {
     participantIds: [ID!]
   ): Matchday! @aws_auth(cognito_groups: ["Admins"])
 
-  generateRound(matchdayId: ID!, round: Int!): [Match!]!
+  # Generates the next round (1 + the highest round already generated for
+  # this matchday, or 1 if none yet) — the caller doesn't pick a round
+  # number, since there's no fixed round count (see SPEC.md).
+  generateRound(matchdayId: ID!): [Match!]!
     @aws_auth(cognito_groups: ["Admins"])
 
   recordSetResult(

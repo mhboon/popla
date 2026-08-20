@@ -93,7 +93,8 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - PK: `matchdayId`, SK: `ROUND#<n>#COURT#<c>`
 - Attributes: `round`, `court`, `team1PlayerIds` (2), `team2PlayerIds`
   (2), `team1Games`, `team2Games`, `status` (`PENDING` | `COMPLETE`).
-- One item per set (4 rounds × N/4 courts per matchday).
+- One item per set (N/4 courts per round, one or more rounds per
+  matchday — see SPEC.md).
 
 ### `MatchdayResults`
 - PK: `matchdayId`, SK: `playerId`
@@ -136,18 +137,21 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   the resolver's condition expression before the `UpdateItem`
 
 **Lambda resolvers (real business logic):**
-- `generateRound(matchdayId, round)` — reads current standings (round 1:
-  the participant list, unranked; round > 1: current `MatchdayResults`
-  computed so far — see note below), runs the Mexicano or Americano
-  pairing algorithm per `SPEC.md`, batch-writes the `Matches` items for
-  that round. Must guard against regenerating an already-played round.
-  Also flips `Matchdays.status` from `SETUP` to `IN_PROGRESS` on round 1,
-  which is what makes the matchday stop being editable.
-- `closeMatchday(matchdayId)` — aggregates all 4 rounds of completed
+- `generateRound(matchdayId)` — determines the round number itself (one
+  past the highest round already generated, or 1 if none yet — there's
+  no fixed round count, see `SPEC.md`), reads current standings (round 1:
+  the participant list, unranked; later rounds: the interim per-matchday
+  standings computed from completed `Matches` so far — see note below),
+  runs the Mexicano or Americano pairing algorithm per `SPEC.md`,
+  batch-writes the `Matches` items for that round. Also flips
+  `Matchdays.status` from `SETUP` to `IN_PROGRESS` on round 1, which is
+  what makes the matchday stop being editable.
+- `closeMatchday(matchdayId)` — aggregates all generated rounds' complete
   `Matches`, computes each player's setsWon/gamesWon/gamesLost/gameDiff/
   rank/seasonPoints, writes `MatchdayResults`, and atomically increments
   `SeasonStandings` in a single DynamoDB transaction. Also flips
-  `Matchdays.status` to `CLOSED`.
+  `Matchdays.status` to `CLOSED`. The admin decides when to stop
+  generating rounds and call this — there's no fixed round count.
 - `updateMatchday(matchdayId, date?, format?, participantIds?)` — only
   allowed while `status == SETUP`. A participant-list change means
   reading the current `MatchdayParticipants`, diffing against the new
@@ -155,7 +159,7 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   `Matchdays` update — real enough logic to warrant Lambda over a native
   resolver, unlike `createMatchday`'s simpler "write everything" case.
 
-Note: Mexicano's round-over-round re-ranking (round 2, 3, 4 pairing
+Note: Mexicano's round-over-round re-ranking (every round after the first
 depends on the running standings *within that matchday*, not just the
 final `MatchdayResults` which are only written at close) means
 `generateRound` computes an in-memory/interim ranking from the completed

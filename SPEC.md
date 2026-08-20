@@ -26,8 +26,11 @@ longer-running "season" ranking.
   valid/likely upper case).
 - Format: each matchday is designated as either **Mexicano** or
   **Americano** at creation time (see Match Generation below).
-- Structure: a matchday consists of exactly **4 rounds**. Each round, all N
-  participants are split across N/4 courts, and each court plays one set.
+- Structure: a matchday consists of **one or more rounds** — there's no
+  fixed count. Each round, all N participants are split across N/4
+  courts, and each court plays one set. After a round's sets are all
+  recorded, the admin decides whether to generate another round or end
+  (close) the matchday.
 - Set scoring: played to 6 games. No tiebreak at 6-6 (does not apply — see
   below), and no requirement to win by 2 games. First to 6 games wins the
   set, e.g. a set can validly end 6-5.
@@ -45,8 +48,9 @@ Two supported formats, selectable per matchday:
    one court, ranks 5–8 to the next, and so on.
 4. Within each group of 4, the two teams (partner/opponent assignment) are
    randomized — not a fixed seeding rule.
-5. Repeat steps 2–4 for rounds 2, 3, and 4 (re-rank → re-bucket → randomize
-   within bucket each time).
+5. Repeat steps 2–4 for each subsequent round the admin generates
+   (re-rank → re-bucket → randomize within bucket each time), until the
+   admin ends the matchday.
 
 **Americano** (fully random):
 - Every round, all N participants are randomly shuffled into courts and

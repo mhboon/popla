@@ -52,7 +52,7 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
   );
   if (matches.length === 0 || matches.some((m) => m.status !== 'COMPLETE')) {
     throw new Error(
-      'All 4 rounds must be generated and every set recorded before closing'
+      'At least one round must be generated, and every set recorded, before closing'
     );
   }
 
@@ -105,9 +105,25 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
     },
   ];
 
+  // Standard competition ranking ("1224"): players tied on both setsWon
+  // and gameDiff share the same rank (and so the same season points)
+  // instead of being split across consecutive ranks by array position;
+  // the next distinct rank accounts for the size of the tied group
+  // (two players tied for rank 2 pushes the next player to rank 4, not
+  // 3), same as the `index + 1` formula naturally gives once ties are
+  // detected — see the `tiedWithPrevious` check below.
+  let previousRank = 0;
+  let previousGameDiff: number | null = null;
+  let previousSetsWon: number | null = null;
+
   ranked.forEach(([playerId, s], index) => {
-    const rank = index + 1;
     const gameDiff = s.gamesWon - s.gamesLost;
+    const tiedWithPrevious = s.setsWon === previousSetsWon && gameDiff === previousGameDiff;
+    const rank = tiedWithPrevious ? previousRank : index + 1;
+    previousRank = rank;
+    previousSetsWon = s.setsWon;
+    previousGameDiff = gameDiff;
+
     const seasonPoints = rank === 1 ? participantCount : participantCount - rank;
     const rankScore = s.setsWon * 100000 + (gameDiff + RANK_SCORE_GAME_DIFF_OFFSET);
 

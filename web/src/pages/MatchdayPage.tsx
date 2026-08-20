@@ -10,9 +10,12 @@ import {
   listPlayers,
   recordSetResult,
 } from '../lib/api';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
 
-const ROUNDS = [1, 2, 3, 4];
+// A set is played to 6 games with no tiebreak (SPEC.md) — 0-6 is the full
+// valid range for either team's game count.
+const GAME_SCORES = [0, 1, 2, 3, 4, 5, 6];
 
 export function MatchdayPage() {
   const { matchdayId } = useParams<{ matchdayId: string }>();
@@ -25,8 +28,9 @@ export function MatchdayPage() {
   const [ranking, setRanking] = useState<MatchdayResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [generatingRound, setGeneratingRound] = useState<number | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [confirmingClose, setConfirmingClose] = useState(false);
 
   async function refresh() {
     if (!matchdayId) return;
@@ -55,17 +59,17 @@ export function MatchdayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchdayId]);
 
-  async function handleGenerateRound(round: number) {
+  async function handleGenerateRound() {
     if (!matchdayId) return;
     setError(null);
-    setGeneratingRound(round);
+    setGenerating(true);
     try {
-      await generateRound(idToken, matchdayId, round);
+      await generateRound(idToken, matchdayId);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to generate round ${round}`);
+      setError(err instanceof Error ? err.message : 'Failed to generate the next round');
     } finally {
-      setGeneratingRound(null);
+      setGenerating(false);
     }
   }
 
@@ -96,14 +100,20 @@ export function MatchdayPage() {
     list.push(match);
     matchesByRound.set(match.round, list);
   }
-  const readyToClose =
-    matchesByRound.size === ROUNDS.length && matches.every((m) => m.status === 'COMPLETE');
+  const roundNumbers = [...matchesByRound.keys()].sort((a, b) => a - b);
+  const currentRound = roundNumbers.at(-1) ?? 0;
+  const currentRoundMatches = matchesByRound.get(currentRound) ?? [];
+  const currentRoundComplete =
+    currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
 
   return (
     <div>
       <h1>Matchday — {matchday.date}</h1>
       <p>
-        Tournament style: {matchday.format} · Status: {matchday.status}
+        Tournament style: {matchday.format} ·{' '}
+        <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
+          {matchday.status.replace('_', ' ')}
+        </span>
         {matchday.status === 'SETUP' && (
           <>
             {' · '}
@@ -116,68 +126,97 @@ export function MatchdayPage() {
       {matchday.status === 'CLOSED' ? (
         <section>
           <h2>Ranking</h2>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Player</th>
-                <th>Sets won</th>
-                <th>Game diff</th>
-                <th>Season points</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranking.map((result) => (
-                <tr key={result.playerId}>
-                  <td>{result.rank}</td>
-                  <td>{playerName(result.playerId)}</td>
-                  <td>{result.setsWon}</td>
-                  <td>{result.gameDiff}</td>
-                  <td>{result.seasonPoints}</td>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Player</th>
+                  <th>Sets won</th>
+                  <th>Game diff</th>
+                  <th>Season points</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ranking.map((result) => (
+                  <tr key={result.playerId}>
+                    <td>
+                      <span className="scoreboard-chip">{result.rank}</span>
+                    </td>
+                    <td>{playerName(result.playerId)}</td>
+                    <td className="num">{result.setsWon}</td>
+                    <td className="num">{result.gameDiff}</td>
+                    <td className="num">{result.seasonPoints}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : (
-        readyToClose && (
-          <button type="button" onClick={handleCloseMatchday} disabled={closing}>
-            {closing ? 'Closing…' : 'Close matchday'}
-          </button>
+        currentRoundComplete && (
+          <div className="matchday-next-actions">
+            <button
+              type="button"
+              className="button-primary"
+              onClick={handleGenerateRound}
+              disabled={generating}
+            >
+              {generating ? 'Generating…' : `Generate round ${currentRound + 1}`}
+            </button>
+            <button
+              type="button"
+              className="button-danger"
+              onClick={() => setConfirmingClose(true)}
+              disabled={closing}
+            >
+              Finish matchday
+            </button>
+          </div>
         )
       )}
 
-      {ROUNDS.map((round) => {
+      <ConfirmDialog
+        open={confirmingClose}
+        title="Close this matchday?"
+        message="This finalizes the day ranking and adds season points for every participant. It can't be undone."
+        confirmLabel="Close matchday"
+        danger
+        busy={closing}
+        onCancel={() => setConfirmingClose(false)}
+        onConfirm={() => {
+          setConfirmingClose(false);
+          handleCloseMatchday();
+        }}
+      />
+
+      {currentRound === 0 && matchday.status !== 'CLOSED' && (
+        <button type="button" className="button-primary" onClick={handleGenerateRound} disabled={generating}>
+          {generating ? 'Generating…' : 'Generate round 1'}
+        </button>
+      )}
+
+      {[...roundNumbers].reverse().map((round) => {
         const roundMatches = (matchesByRound.get(round) ?? []).sort((a, b) => a.court - b.court);
+        const readOnly = round !== currentRound || matchday.status === 'CLOSED';
         return (
           <section key={round}>
-            <h2>Round {round}</h2>
-            {roundMatches.length === 0 ? (
-              matchday.status === 'CLOSED' ? (
-                <p>Not played.</p>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleGenerateRound(round)}
-                  disabled={generatingRound !== null}
-                >
-                  {generatingRound === round ? 'Generating…' : `Generate round ${round}`}
-                </button>
-              )
-            ) : (
-              <div className="match-grid">
-                {roundMatches.map((match) => (
-                  <MatchCard
-                    key={`${match.round}-${match.court}`}
-                    match={match}
-                    playerName={playerName}
-                    idToken={idToken}
-                    matchdayId={matchdayId!}
-                    onSaved={refresh}
-                  />
-                ))}
-              </div>
-            )}
+            <h2>
+              Round <span className="scoreboard-chip">{round}</span>
+            </h2>
+            <div className="match-grid">
+              {roundMatches.map((match) => (
+                <MatchCard
+                  key={`${match.round}-${match.court}`}
+                  match={match}
+                  playerName={playerName}
+                  idToken={idToken}
+                  matchdayId={matchdayId!}
+                  onSaved={refresh}
+                  readOnly={readOnly}
+                />
+              ))}
+            </div>
           </section>
         );
       })}
@@ -191,12 +230,14 @@ function MatchCard({
   idToken,
   matchdayId,
   onSaved,
+  readOnly,
 }: {
   match: Match;
   playerName: (playerId: string) => string;
   idToken: string;
   matchdayId: string;
   onSaved: () => Promise<void>;
+  readOnly: boolean;
 }) {
   const [editing, setEditing] = useState(match.status === 'PENDING');
   const [team1Games, setTeam1Games] = useState(match.team1Games ?? 0);
@@ -234,24 +275,30 @@ function MatchCard({
 
       {editing ? (
         <form onSubmit={handleSave} className="score-form">
-          <input
-            type="number"
-            min={0}
-            max={6}
+          <select
+            className="score-select"
             value={team1Games}
             onChange={(e) => setTeam1Games(Number(e.target.value))}
-            required
-          />
+          >
+            {GAME_SCORES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
           <span>–</span>
-          <input
-            type="number"
-            min={0}
-            max={6}
+          <select
+            className="score-select"
             value={team2Games}
             onChange={(e) => setTeam2Games(Number(e.target.value))}
-            required
-          />
-          <button type="submit" disabled={saving}>
+          >
+            {GAME_SCORES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="button-primary" disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </button>
           {match.status === 'COMPLETE' && (
@@ -265,9 +312,11 @@ function MatchCard({
           <strong>
             {match.team1Games} – {match.team2Games}
           </strong>
-          <button type="button" onClick={() => setEditing(true)}>
-            Edit
-          </button>
+          {!readOnly && (
+            <button type="button" onClick={() => setEditing(true)}>
+              Edit
+            </button>
+          )}
         </div>
       )}
       {error && <p className="form-error">{error}</p>}

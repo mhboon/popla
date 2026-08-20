@@ -16,7 +16,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <nav>
             <Link to="/participants">Participants</Link>
             <Link to="/seasons">Seasons</Link>
-            <Link to="/matchdays/new">New matchday</Link>
+            <Link to="/matchdays">Matchdays</Link>
             <button
               type="button"
               onClick={() => {

@@ -24,6 +24,7 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const seasonsTable = new dynamodb.Table(this, 'SeasonsTable', {
@@ -31,6 +32,7 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'seasonId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const matchdaysTable = new dynamodb.Table(this, 'MatchdaysTable', {
@@ -38,6 +40,7 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'matchdayId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
     matchdaysTable.addGlobalSecondaryIndex({
       indexName: 'bySeasonId',
@@ -54,6 +57,7 @@ export class PoplaBackendStack extends Stack {
         sortKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
         removalPolicy: RemovalPolicy.RETAIN,
+        pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       }
     );
 
@@ -63,6 +67,7 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'roundCourt', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     const matchdayResultsTable = new dynamodb.Table(this, 'MatchdayResultsTable', {
@@ -71,6 +76,7 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
     matchdayResultsTable.addGlobalSecondaryIndex({
       indexName: 'byMatchdayRank',
@@ -84,6 +90,7 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'playerId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
     seasonStandingsTable.addGlobalSecondaryIndex({
       indexName: 'bySeasonPoints',
@@ -96,7 +103,14 @@ export class PoplaBackendStack extends Stack {
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'popla-users',
       selfSignUpEnabled: false,
-      signInAliases: { email: true },
+      // `username: true` alongside `email: true` puts Cognito in
+      // AliasAttributes mode instead of UsernameAttributes mode — that's
+      // what lets admin-create-user set a real, friendly Username
+      // instead of Cognito silently generating a random GUID and only
+      // accepting email as the sign-in alias. This is immutable on an
+      // existing pool (changing it replaces the pool), so existing users
+      // need recreating after this deploys — see README.md.
+      signInAliases: { username: true, email: true },
       removalPolicy: RemovalPolicy.RETAIN,
     });
 

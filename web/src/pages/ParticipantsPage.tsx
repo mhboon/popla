@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../lib/useAuth';
 import { createPlayer, listPlayers, updatePlayer } from '../lib/api';
+import { sortByName } from '../lib/sort';
 import type { Player } from '../types/graphql';
 
 const emptyForm = { displayName: '', phone: '', email: '' };
@@ -23,9 +24,7 @@ export function ParticipantsPage() {
   async function refresh() {
     setLoading(true);
     try {
-      const result = await listPlayers(idToken);
-      result.sort((a, b) => a.displayName.localeCompare(b.displayName));
-      setPlayers(result);
+      setPlayers(sortByName(await listPlayers(idToken)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load participants');
     } finally {
@@ -98,6 +97,7 @@ export function ParticipantsPage() {
           <label>
             Name
             <input
+              type="text"
               value={registerForm.displayName}
               onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })}
               required
@@ -106,6 +106,7 @@ export function ParticipantsPage() {
           <label>
             Phone (optional)
             <input
+              type="text"
               value={registerForm.phone}
               onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
             />
@@ -118,7 +119,7 @@ export function ParticipantsPage() {
               onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
             />
           </label>
-          <button type="submit" disabled={registering}>
+          <button type="submit" className="button-primary" disabled={registering}>
             {registering ? 'Registering…' : 'Register'}
           </button>
         </form>
@@ -129,61 +130,72 @@ export function ParticipantsPage() {
         {loading ? (
           <p>Loading…</p>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((player) =>
-                editingId === player.playerId ? (
-                  <tr key={player.playerId}>
-                    <td colSpan={4}>
-                      <form onSubmit={handleSaveEdit} className="inline-form">
-                        <input
-                          value={editForm.displayName}
-                          onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
-                          required
-                        />
-                        <input
-                          value={editForm.phone}
-                          onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                          placeholder="Phone"
-                        />
-                        <input
-                          type="email"
-                          value={editForm.email}
-                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                          placeholder="Email"
-                        />
-                        <button type="submit" disabled={saving}>
-                          {saving ? 'Saving…' : 'Save'}
-                        </button>
-                        <button type="button" onClick={() => setEditingId(null)}>
-                          Cancel
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={player.playerId}>
-                    <td>{player.displayName}</td>
-                    <td>{player.phone ?? '—'}</td>
-                    <td>{player.email ?? '—'}</td>
-                    <td>
-                      <button type="button" onClick={() => startEdit(player)}>
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((player) =>
+                  editingId === player.playerId ? (
+                    <tr key={player.playerId}>
+                      <td colSpan={3}>
+                        <form onSubmit={handleSaveEdit} className="inline-form">
+                          <input
+                            type="text"
+                            value={editForm.displayName}
+                            onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+                            required
+                          />
+                          <input
+                            type="text"
+                            value={editForm.phone}
+                            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                            placeholder="Phone"
+                          />
+                          <input
+                            type="email"
+                            value={editForm.email}
+                            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                            placeholder="Email"
+                          />
+                          <button type="submit" className="button-primary" disabled={saving}>
+                            {saving ? 'Saving…' : 'Save'}
+                          </button>
+                          <button type="button" onClick={() => setEditingId(null)}>
+                            Cancel
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr
+                      key={player.playerId}
+                      className="row-actionable"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Edit ${player.displayName}`}
+                      onClick={() => startEdit(player)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          startEdit(player);
+                        }
+                      }}
+                    >
+                      <td>{player.displayName}</td>
+                      <td>{player.phone ?? '—'}</td>
+                      <td>{player.email ?? '—'}</td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

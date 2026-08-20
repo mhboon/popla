@@ -177,13 +177,13 @@ export function listMatches(idToken: string, matchdayId: string) {
   ).then((d) => d.listMatches);
 }
 
-export function generateRound(idToken: string, matchdayId: string, round: number) {
+export function generateRound(idToken: string, matchdayId: string) {
   return graphqlRequest<{ generateRound: Match[] }>(
     idToken,
-    `mutation($matchdayId: ID!, $round: Int!) {
-      generateRound(matchdayId: $matchdayId, round: $round) { ${MATCH_FIELDS} }
+    `mutation($matchdayId: ID!) {
+      generateRound(matchdayId: $matchdayId) { ${MATCH_FIELDS} }
     }`,
-    { matchdayId, round }
+    { matchdayId }
   ).then((d) => d.generateRound);
 }
 
