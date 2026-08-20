@@ -60,25 +60,31 @@ Two supported formats, selectable per matchday:
 ### Day Ranking (within a matchday)
 
 Participants are ranked at the end of a matchday by, in order:
-1. Total games won (descending) — **not** sets won. A player who wins
+1. Game differential: games won minus games lost (descending). This is
+   primary rather than raw games won specifically so that losses count
+   against a player, not just wins for them — see the first example
+   below for why that distinction matters.
+2. Total games won (descending) — **not** sets won. A player who wins
    fewer sets but more total games (e.g. several close losses) can
    outrank a player who wins more sets by lopsided margins.
-2. Game differential: games won minus games lost (descending).
+3. Sets won (descending).
 
-Example (tiebreak only, both criteria give the same order here): a
-player who wins sets 6-0, 6-0, 6-0, 6-0 outranks a player who wins sets
-6-1, 6-1, 6-1, 6-1 — both won 24 games (winning a set always means
-winning exactly 6 games, regardless of the loser's score), so this comes
-down to the second criterion: the first player's game differential
-(+24) beats the second's (+20).
+Example (why game differential, not raw games won, must be primary): a
+player who loses all 4 sets 5-6 has 0 sets won but 20 games won (5 × 4)
+against 24 games lost, for a game differential of -4. A player who wins
+3 sets 6-0 and loses 1 set 0-6 has 3 sets won and only 18 games won, but
+a game differential of +12. Ranking by raw games won alone would put the
+0-3 player above the 3-1 player, which is clearly wrong — game
+differential correctly ranks the 3-1 player first.
 
-Example (where this actually differs from ranking by sets won): a
-player who wins one set 6-0 and loses three sets 5-6 has 1 set won but
-21 games won (6 + 5 + 5 + 5). A player who wins two sets 6-0 and loses
-two sets 0-6 has 2 sets won but only 12 games won. The first player
-outranks the second, despite winning fewer sets — they were competitive
-throughout instead of blowing out two matches and getting blown out in
-the other two.
+Example (why total games won, not sets won, is the next tiebreaker,
+when game differential ties): a player who wins sets 6-4 and 4-6 has 1
+set won, 10 games won, 10 games lost, and a game differential of 0. A
+player who wins sets 6-0 and 0-6 also has 1 set won, but only 6 games
+won, 6 games lost, and the same game differential of 0. Sets won can't
+break this tie (both 1-1) — games won can, and correctly ranks the
+first player (who played two competitive, closely-contested sets)
+above the second (who played two lopsided sets that canceled out).
 
 ### Season Points
 

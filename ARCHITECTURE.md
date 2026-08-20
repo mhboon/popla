@@ -103,10 +103,11 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - Written once, by the `closeMatchday` Lambda, from the completed
   `Matches` for that matchday.
 - GSI `byMatchdayRank`: PK `matchdayId`, SK `rankScore` (number) — a
-  precomputed `gamesWon * 100000 + (gameDiff + offset)` so a plain
-  descending `Query` returns the day ranking (games won desc, then game
-  diff desc — see SPEC.md's Day Ranking) directly. No client-side or
-  resolver-side sorting needed.
+  precomputed 3-level encoding of `(gameDiff, gamesWon, setsWon)`, each
+  level given enough headroom that it dominates the levels below it, so
+  a plain descending `Query` returns the day ranking (game diff desc,
+  then games won desc, then sets won desc — see SPEC.md's Day Ranking)
+  directly. No client-side or resolver-side sorting needed.
 
 ### `SeasonStandings`
 - PK: `seasonId`, SK: `playerId`
