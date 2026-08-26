@@ -16,17 +16,17 @@
     "@eslint/js": "^10.0.1",
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^26.2.0",
-    "aws-cdk": "^2.1017.0",
+    "aws-cdk": "^2.1138.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.8.1",
+    "eslint": "^10.9.0",
     "tsx": "^4.19.2",
     "typescript": "^7.0.2",
     "typescript-eslint": "^8.15.0"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.700.0",
-    "@aws-sdk/lib-dynamodb": "^3.700.0",
-    "aws-cdk-lib": "^2.170.0",
+    "@aws-sdk/client-dynamodb": "^3.1116.0",
+    "@aws-sdk/lib-dynamodb": "^3.1116.0",
+    "aws-cdk-lib": "^2.266.0",
     "constructs": "^10.4.2",
     "source-map-support": "^0.5.21"
   }
