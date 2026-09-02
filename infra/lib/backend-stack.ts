@@ -97,6 +97,11 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'seasonId', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'totalPoints', type: dynamodb.AttributeType.NUMBER },
     });
+    seasonStandingsTable.addGlobalSecondaryIndex({
+      indexName: 'bySeasonWinnerPoints',
+      partitionKey: { name: 'seasonId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'winnerPoints', type: dynamodb.AttributeType.NUMBER },
+    });
 
     // ---- Cognito ----
 
@@ -200,6 +205,7 @@ export class PoplaBackendStack extends Stack {
       { dataSource: matchesDS, typeName: 'Mutation', fieldName: 'recordSetResult', file: 'Mutation.recordSetResult.js' },
       { dataSource: resultsDS, typeName: 'Query', fieldName: 'getMatchdayRanking', file: 'Query.getMatchdayRanking.js' },
       { dataSource: standingsDS, typeName: 'Query', fieldName: 'getSeasonStanding', file: 'Query.getSeasonStanding.js' },
+      { dataSource: standingsDS, typeName: 'Query', fieldName: 'getSeasonWinnerRanking', file: 'Query.getSeasonWinnerRanking.js' },
     ];
 
     for (const { dataSource, typeName, fieldName, file } of nativeResolvers) {

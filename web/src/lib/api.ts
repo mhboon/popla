@@ -13,8 +13,9 @@ const PLAYER_FIELDS = 'playerId displayName phone email createdAt';
 const SEASON_FIELDS = 'seasonId name status startDate closedAt';
 const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status';
 const MATCH_FIELDS = 'matchdayId round court team1PlayerIds team2PlayerIds team1Games team2Games status';
-const MATCHDAY_RESULT_FIELDS = 'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints';
-const SEASON_STANDING_FIELDS = 'seasonId playerId totalPoints matchdaysPlayed';
+const MATCHDAY_RESULT_FIELDS =
+  'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints winnerPoint';
+const SEASON_STANDING_FIELDS = 'seasonId playerId totalPoints matchdaysPlayed winnerPoints';
 
 export function listPlayers(idToken: string) {
   return graphqlRequest<{ listPlayers: Player[] }>(
@@ -104,6 +105,14 @@ export function getSeasonStanding(idToken: string, seasonId: string) {
     `query($seasonId: ID!) { getSeasonStanding(seasonId: $seasonId) { ${SEASON_STANDING_FIELDS} } }`,
     { seasonId }
   ).then((d) => d.getSeasonStanding);
+}
+
+export function getSeasonWinnerRanking(idToken: string, seasonId: string) {
+  return graphqlRequest<{ getSeasonWinnerRanking: SeasonStanding[] }>(
+    idToken,
+    `query($seasonId: ID!) { getSeasonWinnerRanking(seasonId: $seasonId) { ${SEASON_STANDING_FIELDS} } }`,
+    { seasonId }
+  ).then((d) => d.getSeasonWinnerRanking);
 }
 
 export function createMatchday(

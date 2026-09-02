@@ -60,31 +60,35 @@ Two supported formats, selectable per matchday:
 ### Day Ranking (within a matchday)
 
 Participants are ranked at the end of a matchday by, in order:
-1. Game differential: games won minus games lost (descending). This is
-   primary rather than raw games won specifically so that losses count
-   against a player, not just wins for them — see the first example
+1. Total games won (descending) — **not** sets won, and primary over
+   game differential. This rewards consistent, competitive effort across
+   every set played, rather than penalizing a player for close losses
+   the same way a blowout loss is penalized — see the first example
    below for why that distinction matters.
-2. Total games won (descending) — **not** sets won. A player who wins
-   fewer sets but more total games (e.g. several close losses) can
-   outrank a player who wins more sets by lopsided margins.
+2. Game differential: games won minus games lost (descending), as the
+   tiebreaker when total games won is equal.
 3. Sets won (descending).
 
-Example (why game differential, not raw games won, must be primary): a
-player who loses all 4 sets 5-6 has 0 sets won but 20 games won (5 × 4)
-against 24 games lost, for a game differential of -4. A player who wins
-3 sets 6-0 and loses 1 set 0-6 has 3 sets won and only 18 games won, but
-a game differential of +12. Ranking by raw games won alone would put the
-0-3 player above the 3-1 player, which is clearly wrong — game
-differential correctly ranks the 3-1 player first.
+Example (why total games won, not game differential, is primary): a
+player who loses all 4 sets 5-6 has 0 sets won, 20 games won (5 × 4),
+24 games lost, and a game differential of -4. A player who wins 3 sets
+6-5 and loses 1 set 0-6 has 3 sets won, 18 games won, 21 games lost, and
+a game differential of -3. Ranking by game differential alone would put
+the 3-1 player above the 0-4 player — but the 0-4 player fought to 5
+games in every single set, a more consistent, competitive effort than
+the 3-1 player's mix of narrow wins and one lopsided 0-6 loss. Total
+games won correctly ranks the 0-4 player first (20 > 18).
 
-Example (why total games won, not sets won, is the next tiebreaker,
-when game differential ties): a player who wins sets 6-4 and 4-6 has 1
-set won, 10 games won, 10 games lost, and a game differential of 0. A
-player who wins sets 6-0 and 0-6 also has 1 set won, but only 6 games
-won, 6 games lost, and the same game differential of 0. Sets won can't
-break this tie (both 1-1) — games won can, and correctly ranks the
-first player (who played two competitive, closely-contested sets)
-above the second (who played two lopsided sets that canceled out).
+Example (why game differential, not sets won, is the next tiebreaker,
+when total games won ties): a player who wins one set 6-3 and loses the
+other 4-6 has 10 games won, 9 games lost, a game differential of +1,
+and 1 set won. A player who wins one set 6-1 and loses the other 4-6
+also has 10 games won and 1 set won — tied with the first player on
+both total games won and sets won — but only 7 games lost, for a game
+differential of +3. Sets won can't break this tie (both 1-1); game
+differential can, and correctly ranks the second player above the
+first, since a 6-1 win is more dominant than a 6-3 win even though both
+are single set wins.
 
 ### Season Points
 
@@ -102,11 +106,26 @@ only rank 1 scores `N`, and rank 2 already drops to `N - 2`.
 Season ranking is the sum of season points across all matchdays in the
 current season.
 
-### Streepjes (deferred)
+### Winner Points ("streepjes")
 
-- The matchday winner (and in some cases the runner-up) earns a "streepje"
-  (mark/tally) that factors into the season ranking in some way.
-- Exact rules are not yet known and are out of scope until clarified.
+Each closed matchday also awards a "winner point" (streepje) to some of
+its participants, on top of season points:
+
+- Every participant who won **all** their sets that matchday (i.e.
+  `setsWon` equals the number of rounds played) earns a winner point —
+  this can be more than one player (e.g. 3 rounds, 3 players each go
+  3-0: all 3 earn a winner point).
+- **Unless** fewer than 2 participants won all their sets. In that case,
+  the day ranking's rank 1 and rank 2 earn the winner point instead —
+  including a rank-1/rank-2 player who already qualified by winning all
+  their sets, topped up with the next-ranked player(s) needed to reach 2
+  recipients. For example: 1 player goes undefeated (3-0) — that player
+  earns a winner point, and so does whoever ranks 2nd. If nobody goes
+  undefeated, ranks 1 and 2 both earn the winner point.
+
+Season ranking is the sum of season points across all matchdays in the
+current season; a separate "round winners" season ranking is the sum of
+winner points across all matchdays in the current season.
 
 ## Roles & Access
 
@@ -154,6 +173,7 @@ separate admin login.
 
 ## Open Questions
 
-- Exact streepjes rules (when awarded, how they affect season ranking).
 - Any additional tiebreak rules for season ranking beyond total points
   (e.g. is game differential also summed across the season as a tiebreak?).
+  Applies equally to the round-winners season ranking (ties on total
+  winner points).

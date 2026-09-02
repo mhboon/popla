@@ -48,6 +48,7 @@ export interface MatchdayResult {
   gameDiff: number;
   rank: number;
   seasonPoints: number;
+  winnerPoint: boolean;
 }
 
 export interface SeasonStanding {
@@ -55,4 +56,5 @@ export interface SeasonStanding {
   playerId: string;
   totalPoints: number;
   matchdaysPlayed: number;
+  winnerPoints: number;
 }

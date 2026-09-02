@@ -29,8 +29,8 @@ interface StandingSoFar {
 }
 
 /**
- * Same tally as infra/lambda/close-matchday — game differential, then
- * games won, then sets won, see SPEC.md's Day Ranking — computed
+ * Same tally as infra/lambda/close-matchday — games won, then game
+ * differential, then sets won, see SPEC.md's Day Ranking — computed
  * client-side from whatever COMPLETE matches have been recorded so far.
  * This is what lets the Ranking tab show an intermediate standing before
  * the matchday is closed, without a backend round-trip (the client
@@ -72,8 +72,8 @@ function standingsSoFar(matches: Match[]): StandingSoFar[] {
       gameDiff: s.gamesWon - s.gamesLost,
     }))
     .sort((a, b) => {
-      if (b.gameDiff !== a.gameDiff) return b.gameDiff - a.gameDiff;
       if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+      if (b.gameDiff !== a.gameDiff) return b.gameDiff - a.gameDiff;
       return b.setsWon - a.setsWon;
     });
 }
@@ -174,7 +174,7 @@ export function MatchdayPage() {
     isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
   const dayStandingsSoFar = assignCompetitionRank(
     standingsSoFar(matches),
-    (a, b) => a.gameDiff === b.gameDiff && a.gamesWon === b.gamesWon && a.setsWon === b.setsWon
+    (a, b) => a.gamesWon === b.gamesWon && a.gameDiff === b.gameDiff && a.setsWon === b.setsWon
   );
 
   return (
@@ -306,10 +306,11 @@ export function MatchdayPage() {
                     <tr>
                       <th>#</th>
                       <th>Player</th>
-                      <th>Game diff</th>
                       <th>Games won</th>
+                      <th>Game diff</th>
                       <th>Sets won</th>
                       <th>Season points</th>
+                      <th>Winner point</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -319,10 +320,11 @@ export function MatchdayPage() {
                           <span className="scoreboard-chip">{result.rank}</span>
                         </td>
                         <td>{playerName(result.playerId)}</td>
-                        <td className="num">{result.gameDiff}</td>
                         <td className="num">{result.gamesWon}</td>
+                        <td className="num">{result.gameDiff}</td>
                         <td className="num">{result.setsWon}</td>
                         <td className="num">{result.seasonPoints}</td>
+                        <td className="num">{result.winnerPoint ? '🏆' : ''}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -349,8 +351,8 @@ export function MatchdayPage() {
                     <tr>
                       <th>#</th>
                       <th>Player</th>
-                      <th>Game diff</th>
                       <th>Games won</th>
+                      <th>Game diff</th>
                       <th>Sets won</th>
                     </tr>
                   </thead>
@@ -361,8 +363,8 @@ export function MatchdayPage() {
                           <span className="scoreboard-chip">{standing.rank}</span>
                         </td>
                         <td>{playerName(standing.playerId)}</td>
-                        <td className="num">{standing.gameDiff}</td>
                         <td className="num">{standing.gamesWon}</td>
+                        <td className="num">{standing.gameDiff}</td>
                         <td className="num">{standing.setsWon}</td>
                       </tr>
                     ))}
