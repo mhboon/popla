@@ -101,24 +101,28 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 ### `MatchdayResults`
 - PK: `matchdayId`, SK: `playerId`
 - Attributes: `setsWon`, `gamesWon`, `gamesLost`, `gameDiff`, `rank`,
-  `seasonPoints`, `seasonId` (denormalized for reference).
+  `seasonPoints`, `winnerPoint` (bool — see SPEC.md's Winner Points),
+  `seasonId` (denormalized for reference).
 - Written once, by the `closeMatchday` Lambda, from the completed
   `Matches` for that matchday.
 - GSI `byMatchdayRank`: PK `matchdayId`, SK `rankScore` (number) — a
-  precomputed 3-level encoding of `(gameDiff, gamesWon, setsWon)`, each
+  precomputed 3-level encoding of `(gamesWon, gameDiff, setsWon)`, each
   level given enough headroom that it dominates the levels below it, so
-  a plain descending `Query` returns the day ranking (game diff desc,
-  then games won desc, then sets won desc — see SPEC.md's Day Ranking)
+  a plain descending `Query` returns the day ranking (games won desc,
+  then game diff desc, then sets won desc — see SPEC.md's Day Ranking)
   directly. No client-side or resolver-side sorting needed.
 
 ### `SeasonStandings`
 - PK: `seasonId`, SK: `playerId`
-- Attributes: `totalPoints`, `matchdaysPlayed`.
+- Attributes: `totalPoints`, `matchdaysPlayed`, `winnerPoints` (sum of
+  winner points across the season's closed matchdays — see SPEC.md).
 - Incrementally updated (atomic `ADD`) by `closeMatchday`, in the same
   transaction as the `MatchdayResults` write.
 - GSI `bySeasonPoints`: PK `seasonId`, SK `totalPoints` — descending
   `Query` gives the season leaderboard directly, native resolver, no
   Lambda involved on read.
+- GSI `bySeasonWinnerPoints`: PK `seasonId`, SK `winnerPoints` — same
+  idea, for the "round winners" season ranking.
 
 ## Resolver Split
 
@@ -130,6 +134,7 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - `listMatches(matchdayId, round?)`
 - `getMatchdayRanking(matchdayId)` — Query on `MatchdayResults.byMatchdayRank`
 - `getSeasonStanding(seasonId)` — Query on `SeasonStandings.bySeasonPoints`
+- `getSeasonWinnerRanking(seasonId)` — Query on `SeasonStandings.bySeasonWinnerPoints`
 - `createSeason`, `closeSeason`, `reopenSeason` — simple state changes.
   Only one `ACTIVE` season at a time is a UI-enforced convention, not a
   data-layer constraint — see Open Questions.
@@ -152,10 +157,13 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   what makes the matchday stop being editable.
 - `closeMatchday(matchdayId)` — aggregates all generated rounds' complete
   `Matches`, computes each player's setsWon/gamesWon/gamesLost/gameDiff/
-  rank/seasonPoints, writes `MatchdayResults`, and atomically increments
-  `SeasonStandings` in a single DynamoDB transaction. Also flips
+  rank/seasonPoints/winnerPoint, writes `MatchdayResults`, and atomically
+  increments `SeasonStandings` (`totalPoints`, `matchdaysPlayed`, and
+  `winnerPoints`) in a single DynamoDB transaction. Also flips
   `Matchdays.status` to `CLOSED`. The admin decides when to stop
   generating rounds and call this — there's no fixed round count.
+  Winner-point eligibility (SPEC.md) needs the number of rounds played,
+  taken as the highest `round` among that matchday's `Matches`.
 - `updateMatchday(matchdayId, date?, format?, participantIds?)` — only
   allowed while `status == SETUP`. A participant-list change means
   reading the current `MatchdayParticipants`, diffing against the new
@@ -215,10 +223,6 @@ Splitting this way means a frontend-only change can redeploy
 
 ## Open Questions
 
-- Exact streepjes rules — once known, likely an additional attribute on
-  `MatchdayResults`/`SeasonStandings` plus a small addition to
-  `closeMatchday`'s computation; not expected to change the overall
-  architecture.
 - Concurrent admins could both create/reopen a season at the same moment
   and end up with two `ACTIVE` seasons — the "only one active season"
   invariant is enforced client-side (disabled buttons) in `SeasonsPage`,

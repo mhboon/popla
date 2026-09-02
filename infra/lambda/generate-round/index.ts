@@ -104,7 +104,7 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
 
 /**
  * Mexicano rounds after the first: rank players by the standings
- * accumulated so far *this matchday* (game differential, then games won,
+ * accumulated so far *this matchday* (games won, then game differential,
  * then sets won — see SPEC.md's Day Ranking), derived from the completed
  * Matches of prior rounds. This is deliberately not read from a
  * persisted table — MatchdayResults only exists once the matchday is
@@ -146,8 +146,8 @@ function rankByStandingsSoFar(
   return randomOrder(participantIds).sort((a, b) => {
     const sa = standings.get(a)!;
     const sb = standings.get(b)!;
-    if (sb.gameDiff !== sa.gameDiff) return sb.gameDiff - sa.gameDiff;
     if (sb.gamesWon !== sa.gamesWon) return sb.gamesWon - sa.gamesWon;
+    if (sb.gameDiff !== sa.gameDiff) return sb.gameDiff - sa.gameDiff;
     return sb.setsWon - sa.setsWon;
   });
 }

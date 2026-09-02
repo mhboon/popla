@@ -8,8 +8,10 @@ interface RankedDayStanding {
   gamesWon: number;
   setsWon: number;
   // Only known once the matchday closes — the in-progress "so far" standing
-  // has no season points to report yet, so this stays unset there.
+  // has no season points or winner point to report yet, so these stay
+  // unset there.
   seasonPoints?: number;
+  winnerPoint?: boolean;
 }
 
 export function formatMatchdayRankingShare(
@@ -20,8 +22,10 @@ export function formatMatchdayRankingShare(
 ): string {
   const header = `Popla Cup — ${formatMatchdayWhen(matchday)} ranking${final ? '' : ' (so far)'}`;
   const lines = standings.map((s) => {
-    const line = `${s.rank}. ${playerName(s.playerId)} — ${s.gameDiff >= 0 ? '+' : ''}${s.gameDiff} diff, ${s.gamesWon} games, ${s.setsWon} sets`;
-    return s.seasonPoints != null ? `${line}, ${s.seasonPoints} season pts` : line;
+    let line = `${s.rank}. ${playerName(s.playerId)} — ${s.gamesWon} games, ${s.gameDiff >= 0 ? '+' : ''}${s.gameDiff} diff, ${s.setsWon} sets`;
+    if (s.seasonPoints != null) line += `, ${s.seasonPoints} season pts`;
+    if (s.winnerPoint) line += ' 🏆';
+    return line;
   });
   return [header, '', ...lines].join('\n');
 }
@@ -34,6 +38,18 @@ export function formatSeasonRankingShare(
   const header = `Popla Cup — ${season.name} ranking`;
   const lines = standings.map(
     (s) => `${s.rank}. ${playerName(s.playerId)} — ${s.totalPoints} pts (${s.matchdaysPlayed} matchdays)`
+  );
+  return [header, '', ...lines].join('\n');
+}
+
+export function formatSeasonWinnerRankingShare(
+  season: Season,
+  standings: (SeasonStanding & { rank: number })[],
+  playerName: (playerId: string) => string
+): string {
+  const header = `Popla Cup — ${season.name} round winners`;
+  const lines = standings.map(
+    (s) => `${s.rank}. ${playerName(s.playerId)} — ${s.winnerPoints} 🏆`
   );
   return [header, '', ...lines].join('\n');
 }

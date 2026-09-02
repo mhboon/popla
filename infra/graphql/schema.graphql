@@ -68,6 +68,9 @@ type MatchdayResult {
   gameDiff: Int!
   rank: Int!
   seasonPoints: Int!
+  # Whether this player earned a winner point ("streepje") for this
+  # matchday — see SPEC.md's Winner Points.
+  winnerPoint: Boolean!
 }
 
 type SeasonStanding {
@@ -75,6 +78,9 @@ type SeasonStanding {
   playerId: ID!
   totalPoints: Int!
   matchdaysPlayed: Int!
+  # Sum of winner points earned across this season's closed matchdays —
+  # see SPEC.md's Winner Points.
+  winnerPoints: Int!
 }
 
 # Phase 1 is admin-only end to end (see SPEC.md) — every query returns
@@ -93,6 +99,7 @@ type Query @aws_auth(cognito_groups: ["Admins"]) {
   listMatches(matchdayId: ID!): [Match!]!
   getMatchdayRanking(matchdayId: ID!): [MatchdayResult!]!
   getSeasonStanding(seasonId: ID!): [SeasonStanding!]!
+  getSeasonWinnerRanking(seasonId: ID!): [SeasonStanding!]!
 }
 
 type Mutation {
