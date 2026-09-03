@@ -27,9 +27,13 @@ export const handler = async (event: CreateAuthChallengeEvent) => {
   // preventUserExistenceErrors on the User Pool Client) — don't send a
   // real SMS, or spend money, for an unrecognized number.
   if (!event.request.userNotFound) {
+    // event.userName (the Cognito Username) is stored digits-only, no
+    // leading '+' — see infra/lambda/shared/phone.ts. SNS's Publish API
+    // requires actual E.164 (with the '+') to deliver, so it's added
+    // here only, right before the one call that needs it.
     await sns.send(
       new PublishCommand({
-        PhoneNumber: event.userName,
+        PhoneNumber: `+${event.userName}`,
         Message: `Your Popla Cup code is ${code}. It expires in 10 minutes.`,
       })
     );

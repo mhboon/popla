@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requestOtp, toAuthenticatedUser, type SubmitCodeResult } from '../lib/auth';
+import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
 import { useAuth } from '../lib/useAuth';
 
 export function LoginPage() {
@@ -95,12 +96,14 @@ export function LoginPage() {
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          placeholder="+31612345678"
+          placeholder="31612345678"
+          pattern={PHONE_PATTERN}
+          title={PHONE_HINT}
           autoComplete="tel"
           required
         />
       </label>
-      <p>Include the country code, e.g. +31612345678.</p>
+      <p>{PHONE_HINT}</p>
       {error && <p className="form-error">{error}</p>}
       <button type="submit" className="button-primary" disabled={submitting}>
         {submitting ? 'Sending code…' : 'Send code'}

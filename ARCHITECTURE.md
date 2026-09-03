@@ -67,7 +67,8 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 
 ### `Players`
 - PK: `playerId`
-- Attributes: `displayName`, `phone` (optional, E.164), `email`
+- Attributes: `displayName`, `phone` (optional, international, digits
+  only, no leading `+` — see Auth below), `email`
   (optional), `cognitoSub` (nullable — set when an admin registers/
   changes the player's `phone`, via `AdminCreateUser`, not on first
   login; see Auth below), `createdAt`.
@@ -198,15 +199,19 @@ incrementally.
   validity) → verified. There is no password anywhere in the app — this
   also doubles as the "forgot password" flow, since there's nothing to
   forget.
-- **Cognito `Username` = the user's E.164 phone number**, for every user
-  in the pool, admin or participant, `Player`-linked or not. Cognito
-  always accepts signing in with the literal `Username` regardless of
-  alias configuration, so this needed no change to `signInAliases`
-  (which — see the `UserPoolV2` construct comment — is immutable
-  in-place; changing it forces a full pool replacement). A user's
-  Cognito account is created at admin-registration time (when an admin
-  sets/changes a `Player`'s `phone`), not at first login; the returned
-  `sub` is stored as `Players.cognitoSub`.
+- **Cognito `Username` = the user's international phone number, digits
+  only, no leading `+`** (e.g. `31612345678`, not `+31612345678` — see
+  `infra/lambda/shared/phone.ts`'s `PHONE_REGEX`), for every user in the
+  pool, admin or participant, `Player`-linked or not. Cognito always
+  accepts signing in with the literal `Username` regardless of alias
+  configuration, so this needed no change to `signInAliases` (which —
+  see the `UserPoolV2` construct comment — is immutable in-place;
+  changing it forces a full pool replacement). A user's Cognito account
+  is created at admin-registration time (when an admin sets/changes a
+  `Player`'s `phone`), not at first login; the returned `sub` is stored
+  as `Players.cognitoSub`. SNS's `Publish` API requires true E.164 (with
+  the `+`) to actually deliver an SMS, so `create-auth-challenge`
+  prepends it right before that one call — nowhere else needs to.
 - **Passwordless flow is implemented as Cognito `CUSTOM_AUTH`**, handled
   entirely by three small Lambda triggers on the User Pool
   (`define-auth-challenge`, `create-auth-challenge`,

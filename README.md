@@ -108,15 +108,16 @@ From here on, every push to `main` runs `.github/workflows/deploy.yml`.
 
 Login is passwordless SMS OTP for everyone, admin and participant alike
 (see `ARCHITECTURE.md`'s Auth section) — a Cognito user's `Username` is
-their E.164 phone number, and admin is just `Admins`-group membership on
-top of an otherwise ordinary user. Existing admins can promote/demote
-other registered participants through the app's UI, but the *first*
-admin — and any "break-glass" admin not tied to a participant record at
-all — has to be created manually:
+their international phone number, digits only, no leading `+` (e.g.
+`31612345678`, not `+31612345678`), and admin is just `Admins`-group
+membership on top of an otherwise ordinary user. Existing admins can
+promote/demote other registered participants through the app's UI, but
+the *first* admin — and any "break-glass" admin not tied to a
+participant record at all — has to be created manually:
 
 ```bash
 aws cognito-idp admin-create-user --user-pool-id <UserPoolId> \
-  --username <phone-number-e164, e.g. +31612345678> \
+  --username <international phone, no +, e.g. 31612345678> \
   --message-action SUPPRESS
 aws cognito-idp admin-add-user-to-group --user-pool-id <UserPoolId> \
   --username <same-phone-number> --group-name Admins

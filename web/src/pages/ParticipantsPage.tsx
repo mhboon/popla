@@ -9,10 +9,10 @@ import {
   updatePlayer,
 } from '../lib/api';
 import { sortByName } from '../lib/sort';
+import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
 import type { Player } from '../types/graphql';
 
 const emptyForm = { displayName: '', phone: '', email: '' };
-const PHONE_HINT = 'Include the country code, e.g. +31612345678.';
 
 export function ParticipantsPage() {
   const { user } = useAuth();
@@ -157,7 +157,9 @@ export function ParticipantsPage() {
               type="tel"
               value={registerForm.phone}
               onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
-              placeholder="+31612345678"
+              placeholder="31612345678"
+              pattern={PHONE_PATTERN}
+              title={PHONE_HINT}
             />
           </label>
           <label>
@@ -215,11 +217,12 @@ export function ParticipantsPage() {
                             value={editForm.phone}
                             onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                             placeholder="Phone"
+                            pattern={PHONE_PATTERN}
                             disabled={editingIsAdmin}
                             title={
                               editingIsAdmin
                                 ? "Admins can't be renumbered here — use the AWS console, or remove admin status first."
-                                : undefined
+                                : PHONE_HINT
                             }
                           />
                           <input
