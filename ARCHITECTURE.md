@@ -67,8 +67,10 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 
 ### `Players`
 - PK: `playerId`
-- Attributes: `displayName`, `email` (optional), `cognitoSub` (nullable,
-  set once the player has logged in), `createdAt`.
+- Attributes: `displayName`, `phone` (optional, E.164), `email`
+  (optional), `cognitoSub` (nullable — set when an admin registers/
+  changes the player's `phone`, via `AdminCreateUser`, not on first
+  login; see Auth below), `createdAt`.
 - Persists across seasons — this is the durable identity a matchday
   participant and season standings entry both point back to.
 
@@ -127,8 +129,7 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 ## Resolver Split
 
 **Native (AppSync JS resolvers, direct to DynamoDB):**
-- `listPlayers`, `createPlayer`, `updatePlayer` — the latter a dynamic
-  partial-update `SET` expression over whichever fields were provided
+- `listPlayers`
 - `getSeason`, `listSeasons`
 - `getMatchday`, `listMatchdaysBySeason`, `listMatchdayParticipantIds`
 - `listMatches(matchdayId, round?)`
@@ -170,6 +171,16 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   list, and writing the add/remove set in one transaction alongside the
   `Matchdays` update — real enough logic to warrant Lambda over a native
   resolver, unlike `createMatchday`'s simpler "write everything" case.
+- `createPlayer`/`updatePlayer` — provision/deprovision the player's
+  Cognito login (`AdminCreateUser`/`AdminDeleteUser`, keyed by phone —
+  see Auth below) alongside the `Players` write, and (in `updatePlayer`)
+  block a phone-number change for a player who's currently an admin.
+- `promoteToAdmin`/`demoteFromAdmin(playerId)` — `AdminAddUserToGroup`/
+  `AdminRemoveUserFromGroup` against the player's Cognito user;
+  `demoteFromAdmin` rejects removing the caller's own admin status.
+- `listAdminPhoneNumbers` — one `ListUsersInGroup` call against the
+  `Admins` group, used by the admin UI to know which players are
+  currently admins without an AdminListGroupsForUser call per row.
 
 Note: Mexicano's round-over-round re-ranking (every round after the first
 depends on the running standings *within that matchday*, not just the
@@ -182,20 +193,67 @@ incrementally.
 
 ## Auth
 
-- One Cognito User Pool.
-- `Admins` group — phase 1 members created manually (no self-signup).
-  Admin mutations (`generateRound`, `recordSetResult`, `closeMatchday`,
-  `createMatchday`, `createSeason`, `closeSeason`) are restricted with
-  `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema — enforced
-  by AppSync itself, no application code needed for the check.
-- Phase 2: federated identity providers (Google, etc.) added to the same
-  User Pool for participant self-signup. New users get no group (i.e.
-  read-only participant access to phase-2 features); an admin promotes a
-  user into `Admins` when appropriate.
+- One Cognito User Pool. Login is **fully passwordless, for everyone,
+  admin or participant**: phone number → 6-digit SMS code (10 min
+  validity) → verified. There is no password anywhere in the app — this
+  also doubles as the "forgot password" flow, since there's nothing to
+  forget.
+- **Cognito `Username` = the user's E.164 phone number**, for every user
+  in the pool, admin or participant, `Player`-linked or not. Cognito
+  always accepts signing in with the literal `Username` regardless of
+  alias configuration, so this needed no change to `signInAliases`
+  (which — see the `UserPoolV2` construct comment — is immutable
+  in-place; changing it forces a full pool replacement). A user's
+  Cognito account is created at admin-registration time (when an admin
+  sets/changes a `Player`'s `phone`), not at first login; the returned
+  `sub` is stored as `Players.cognitoSub`.
+- **Passwordless flow is implemented as Cognito `CUSTOM_AUTH`**, handled
+  entirely by three small Lambda triggers on the User Pool
+  (`define-auth-challenge`, `create-auth-challenge`,
+  `verify-auth-challenge-response`) — the code and its 10-minute expiry
+  travel via Cognito's own challenge session
+  (`privateChallengeParameters`), not a DynamoDB table.
+  `create-auth-challenge` sends the SMS directly via SNS `Publish`. The
+  User Pool Client has `preventUserExistenceErrors: true` so an unknown
+  phone number gets the same "check your phone" response as a real one
+  (no SMS actually sent) — this masks which numbers are registered.
+  Login itself never touches AppSync — the frontend talks to Cognito
+  directly via `amazon-cognito-identity-js`, same as any other Cognito
+  auth flow.
+- `Admins` group — **admin is purely group membership on an otherwise
+  ordinary phone-based Cognito user**, not a separate account type
+  (this was already true conceptually; login unification just extends
+  it to the login mechanism itself). Admin mutations (`generateRound`,
+  `recordSetResult`, `closeMatchday`, `createMatchday`, `createSeason`,
+  `closeSeason`, `createPlayer`, `updatePlayer`, `promoteToAdmin`,
+  `demoteFromAdmin`) are restricted with
+  `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema —
+  enforced by AppSync itself. Everything else under `Query` is open to
+  any authenticated user by default; the two PII fields on `Player`
+  (`phone`, `email`) are field-gated to `Admins` instead (both nullable,
+  so a non-admin caller gets `null` rather than an error), and
+  `listAdminPhoneNumbers` keeps its own explicit `Admins` restriction
+  since it's admin-management UI data.
+- **Managing admin status**: an existing admin can promote/demote other
+  players via the UI (`promoteToAdmin`/`demoteFromAdmin` — the latter
+  refuses to demote the caller themselves, to avoid stranding the UI
+  path if there's only one admin). The very first admin, and any
+  "break-glass" admin not tied to a `Player` record at all, has to be
+  set up via AWS console (`admin-create-user` + `admin-add-user-to-
+  group`) — none of the Cognito trigger Lambdas or resolvers require a
+  `Player` row to exist, so a bare Cognito user works identically. A
+  player who's currently an admin can't have their phone number changed
+  via the UI (enforced in `updatePlayer`, not just hidden client-side):
+  Cognito `Username` is immutable, so a phone change means delete +
+  recreate the Cognito user, which would silently drop group membership
+  that doesn't survive the recreation.
 - "Switch role" (admin ⇄ participant) is a **frontend-only** concept —
   since admin permissions are a strict superset of participant
   permissions, there's nothing to change on the backend; the client just
   changes which UI it shows.
+- Federated social login (Google etc.) remains a theoretical future
+  option on the same pool if ever wanted, but isn't the plan — SMS OTP
+  covers both admin and participant login now.
 
 ## CDK Structure
 

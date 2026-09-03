@@ -148,18 +148,30 @@ separate admin login.
   just names entered by an admin when building the matchday's participant
   list.
 
-### Phase 2+
+### Phase 2
 
-- Individual login for participants, starting with a standard sign-up/login
-  and later moving to **social login** (e.g. Google/Facebook via a
-  federated identity provider) so participants don't need to manage a
-  separate password.
-- Logged-in participants (including admins acting in their participant
-  capacity) can:
-  - View matchday results and season rankings.
-  - Make score predictions and compare predicted vs. actual results.
-  - View personal stats: favorable/unfavorable partner and opponent
-    combinations ("good and bad combos").
+- Individual login for **everyone** — participants and admins alike —
+  fully passwordless: phone number → SMS code (10 min validity) →
+  logged in. No password ever exists, so there's no separate
+  forgot-password flow to build — requesting a fresh code covers it. A
+  participant's phone number is admin-registered only (no public
+  self-signup); an admin can change it later, except for a participant
+  who is themselves an admin (see Roles & Access below).
+  See `ARCHITECTURE.md`'s Auth section for the Cognito implementation.
+- Logged-in, non-admin participants can, for now, **only**:
+  - View seasons and matchdays (results, rankings). Zero edit/action
+    capability — no admin controls are shown, let alone enabled.
+- Admin status itself is manageable by existing admins, through the UI:
+  promote a registered participant to admin, or demote one (an admin
+  can't demote themselves, to avoid stranding the promote/demote UI if
+  they're the only admin). The very first admin, and any admin account
+  not tied to a participant at all, is set up via the AWS console.
+
+### Phase 3 (future, not yet built)
+
+- Make score predictions and compare predicted vs. actual results.
+- View personal stats: favorable/unfavorable partner and opponent
+  combinations ("good and bad combos").
 
 ## Tech Stack & Deployment
 

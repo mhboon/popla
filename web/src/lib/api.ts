@@ -39,7 +39,12 @@ export function createPlayer(
 
 export function updatePlayer(
   idToken: string,
-  input: { playerId: string; displayName?: string; phone?: string; email?: string }
+  input: {
+    playerId: string;
+    displayName?: string;
+    phone?: string | null;
+    email?: string | null;
+  }
 ) {
   return graphqlRequest<{ updatePlayer: Player }>(
     idToken,
@@ -48,6 +53,29 @@ export function updatePlayer(
     }`,
     input
   ).then((d) => d.updatePlayer);
+}
+
+export function listAdminPhoneNumbers(idToken: string) {
+  return graphqlRequest<{ listAdminPhoneNumbers: string[] }>(
+    idToken,
+    `query { listAdminPhoneNumbers }`
+  ).then((d) => d.listAdminPhoneNumbers);
+}
+
+export function promoteToAdmin(idToken: string, playerId: string) {
+  return graphqlRequest<{ promoteToAdmin: boolean }>(
+    idToken,
+    `mutation($playerId: ID!) { promoteToAdmin(playerId: $playerId) }`,
+    { playerId }
+  ).then((d) => d.promoteToAdmin);
+}
+
+export function demoteFromAdmin(idToken: string, playerId: string) {
+  return graphqlRequest<{ demoteFromAdmin: boolean }>(
+    idToken,
+    `mutation($playerId: ID!) { demoteFromAdmin(playerId: $playerId) }`,
+    { playerId }
+  ).then((d) => d.demoteFromAdmin);
 }
 
 export function listSeasons(idToken: string) {

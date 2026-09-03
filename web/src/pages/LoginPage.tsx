@@ -1,103 +1,109 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login, toAuthenticatedUser } from '../lib/auth';
+import { requestOtp, toAuthenticatedUser, type SubmitCodeResult } from '../lib/auth';
 import { useAuth } from '../lib/useAuth';
 
 export function LoginPage() {
   const { setUser } = useAuth();
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [completeNewPassword, setCompleteNewPassword] =
-    useState<((newPassword: string) => Promise<import('amazon-cognito-identity-js').CognitoUserSession>) | null>(null);
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [submitCode, setSubmitCode] =
+    useState<((code: string) => Promise<SubmitCodeResult>) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleLogin(event: FormEvent) {
+  async function handleRequestCode(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      const result = await login(username, password);
-      if (result.type === 'newPasswordRequired') {
-        setCompleteNewPassword(() => result.completeNewPassword);
+      const result = await requestOtp(phone);
+      setSubmitCode(() => result.submitCode);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send code');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleVerifyCode(event: FormEvent) {
+    event.preventDefault();
+    if (!submitCode) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await submitCode(code);
+      if (result.type === 'incorrect') {
+        setSubmitCode(() => result.submitCode);
+        setCode('');
+        setError('That code was incorrect — try again.');
         return;
       }
       setUser(toAuthenticatedUser(result.session));
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed');
+      setError(err instanceof Error ? err.message : 'Could not verify code');
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleNewPassword(event: FormEvent) {
-    event.preventDefault();
-    if (!completeNewPassword) return;
-    setError(null);
-    setSubmitting(true);
-    try {
-      const session = await completeNewPassword(newPassword);
-      setUser(toAuthenticatedUser(session));
-      navigate('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not set new password');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (completeNewPassword) {
+  if (submitCode) {
     return (
-      <form onSubmit={handleNewPassword} className="auth-form">
-        <h1>Set a new password</h1>
-        <p>Your temporary password must be changed before continuing.</p>
+      <form onSubmit={handleVerifyCode} className="auth-form">
+        <h1>Enter your code</h1>
+        <p>We sent a 6-digit code to {phone}. It's valid for 10 minutes.</p>
         <label>
-          New password
+          Code
           <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            autoComplete="one-time-code"
+            autoFocus
             required
           />
         </label>
         {error && <p className="form-error">{error}</p>}
         <button type="submit" className="button-primary" disabled={submitting}>
-          {submitting ? 'Setting password…' : 'Set password and sign in'}
+          {submitting ? 'Verifying…' : 'Verify and sign in'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSubmitCode(null);
+            setCode('');
+            setError(null);
+          }}
+        >
+          Use a different number
         </button>
       </form>
     );
   }
 
   return (
-    <form onSubmit={handleLogin} className="auth-form">
+    <form onSubmit={handleRequestCode} className="auth-form">
       <h1>Sign in</h1>
       <label>
-        Username
+        Phone number
         <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="+31612345678"
+          autoComplete="tel"
           required
         />
       </label>
-      <label>
-        Password
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          required
-        />
-      </label>
+      <p>Include the country code, e.g. +31612345678.</p>
       {error && <p className="form-error">{error}</p>}
       <button type="submit" className="button-primary" disabled={submitting}>
-        {submitting ? 'Signing in…' : 'Sign in'}
+        {submitting ? 'Sending code…' : 'Send code'}
       </button>
     </form>
   );

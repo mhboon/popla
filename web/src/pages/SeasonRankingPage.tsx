@@ -22,6 +22,7 @@ export function SeasonRankingPage() {
   const { seasonId } = useParams<{ seasonId: string }>();
   const { user } = useAuth();
   const idToken = user!.idToken;
+  const isAdmin = user!.isAdmin;
 
   const [season, setSeason] = useState<Season | null>(null);
   const [hasOtherActiveSeason, setHasOtherActiveSeason] = useState(false);
@@ -114,7 +115,7 @@ export function SeasonRankingPage() {
       </p>
       {error && <p className="form-error">{error}</p>}
 
-      {(season.status === 'ACTIVE' || season.status === 'CLOSED') && (
+      {isAdmin && (season.status === 'ACTIVE' || season.status === 'CLOSED') && (
         <div className="detail-actions">
           {season.status === 'ACTIVE' && (
             <button
@@ -140,19 +141,21 @@ export function SeasonRankingPage() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={confirmingClose}
-        title="Close this season?"
-        message={`Closing "${season.name}" finalizes its ranking. It stays viewable, and you can reopen it later if the active season slot is free.`}
-        confirmLabel="Close season"
-        danger
-        busy={busy}
-        onCancel={() => setConfirmingClose(false)}
-        onConfirm={() => {
-          setConfirmingClose(false);
-          handleClose();
-        }}
-      />
+      {isAdmin && (
+        <ConfirmDialog
+          open={confirmingClose}
+          title="Close this season?"
+          message={`Closing "${season.name}" finalizes its ranking. It stays viewable, and you can reopen it later if the active season slot is free.`}
+          confirmLabel="Close season"
+          danger
+          busy={busy}
+          onCancel={() => setConfirmingClose(false)}
+          onConfirm={() => {
+            setConfirmingClose(false);
+            handleClose();
+          }}
+        />
+      )}
 
       <div className="tabs">
         <button

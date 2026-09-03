@@ -22,8 +22,13 @@ enum MatchStatus {
 type Player {
   playerId: ID!
   displayName: String!
-  phone: String
-  email: String
+  # Admin-only: a non-admin caller (participant) resolves these to null
+  # rather than an error, since both are nullable — see SPEC.md/
+  # ARCHITECTURE.md's Auth section. This lets listPlayers stay open to
+  # any authenticated user for playerId -> displayName resolution
+  # without leaking other participants' contact info.
+  phone: String @aws_auth(cognito_groups: ["Admins"])
+  email: String @aws_auth(cognito_groups: ["Admins"])
   createdAt: AWSDateTime!
 }
 
@@ -83,13 +88,13 @@ type SeasonStanding {
   winnerPoints: Int!
 }
 
-# Phase 1 is admin-only end to end (see SPEC.md) — every query returns
-# data (participant phone/email included) that shouldn't be readable by
-# a non-admin Cognito identity once phase 2 adds participant login.
-# Applying the directive at the type level, rather than repeating it on
-# each field the way Mutation does, means a query added later is
-# admin-only by default instead of by remembering to annotate it.
-type Query @aws_auth(cognito_groups: ["Admins"]) {
+# Any authenticated Cognito user (admin or participant — see
+# ARCHITECTURE.md's Auth section) can call any Query field by default,
+# since login itself now implies "at least read access". The only
+# PII on this graph, Player.phone/email, is gated at the field level
+# instead (see the Player type above), so listPlayers stays usable by
+# everyone for playerId -> displayName resolution.
+type Query {
   listPlayers: [Player!]!
   listSeasons: [Season!]!
   getSeason(seasonId: ID!): Season
@@ -100,6 +105,12 @@ type Query @aws_auth(cognito_groups: ["Admins"]) {
   getMatchdayRanking(matchdayId: ID!): [MatchdayResult!]!
   getSeasonStanding(seasonId: ID!): [SeasonStanding!]!
   getSeasonWinnerRanking(seasonId: ID!): [SeasonStanding!]!
+
+  # Admin-management UI data — the Cognito Usernames (phone numbers, by
+  # construction — see ARCHITECTURE.md's Auth section) currently in the
+  # Admins group. Not participant-facing, so this one keeps an explicit
+  # field-level restriction even though Query is open by default above.
+  listAdminPhoneNumbers: [String!]! @aws_auth(cognito_groups: ["Admins"])
 }
 
 type Mutation {
@@ -156,6 +167,18 @@ type Mutation {
   ): Match! @aws_auth(cognito_groups: ["Admins"])
 
   closeMatchday(matchdayId: ID!): Matchday!
+    @aws_auth(cognito_groups: ["Admins"])
+
+  # Grants Admins-group membership to a player's existing Cognito user
+  # (requires the player to already have phone-based login enabled, i.e.
+  # a non-null cognitoSub — see ARCHITECTURE.md's Auth section).
+  promoteToAdmin(playerId: ID!): Boolean!
+    @aws_auth(cognito_groups: ["Admins"])
+
+  # Revokes Admins-group membership. Rejects removing the caller's own
+  # admin status (see ARCHITECTURE.md) — use another admin account, or
+  # the AWS console, to do that.
+  demoteFromAdmin(playerId: ID!): Boolean!
     @aws_auth(cognito_groups: ["Admins"])
 }
 

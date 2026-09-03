@@ -5,6 +5,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as appsync from 'aws-cdk-lib/aws-appsync';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 
 const RESOLVERS_DIR = path.join(__dirname, '../graphql/resolvers');
@@ -134,12 +135,62 @@ export class PoplaBackendStack extends Stack {
       groupName: 'Admins',
     });
 
-    // Phase 2 will add `oAuth` + `supportedIdentityProviders` here (and
-    // corresponding cognito.UserPoolIdentityProvider constructs) for
-    // Google/social sign-in, once participant login is built.
+    // Passwordless SMS-OTP login for everyone — admins and participants
+    // alike (see ARCHITECTURE.md's Auth section). Every Cognito user in
+    // this pool, admin or not, is created with Username = their E.164
+    // phone number; `custom: true` enables the CUSTOM_AUTH flow that the
+    // three challenge Lambdas below implement.
+    // preventUserExistenceErrors masks "phone not registered" vs "wrong
+    // code" so the app can't be used to enumerate registered numbers —
+    // the challenge Lambdas below handle the resulting
+    // `userNotFound: true` branch explicitly.
     const userPoolClient = userPool.addClient('WebClient', {
-      authFlows: { userSrp: true },
+      authFlows: { custom: true },
+      preventUserExistenceErrors: true,
+      // Matches CDK's own default; set explicitly for documentation —
+      // long enough that a participant isn't re-verifying by SMS on
+      // every visit, given the AuthContext silent-refresh loop.
+      refreshTokenValidity: Duration.days(30),
     });
+
+    // ---- Cognito CUSTOM_AUTH challenge Lambdas (SMS OTP) ----
+    // No DynamoDB access needed — the code + expiry travel via Cognito's
+    // own challenge session (privateChallengeParameters), not a table.
+
+    const defineAuthChallengeFn = new NodejsFunction(this, 'DefineAuthChallengeFn', {
+      entry: path.join(__dirname, '../lambda/define-auth-challenge/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(5),
+    });
+
+    const createAuthChallengeFn = new NodejsFunction(this, 'CreateAuthChallengeFn', {
+      entry: path.join(__dirname, '../lambda/create-auth-challenge/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+    });
+    // Direct-to-phone-number SNS Publish can't be scoped tighter than '*'.
+    createAuthChallengeFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ['sns:Publish'], resources: ['*'] })
+    );
+
+    const verifyAuthChallengeResponseFn = new NodejsFunction(
+      this,
+      'VerifyAuthChallengeResponseFn',
+      {
+        entry: path.join(__dirname, '../lambda/verify-auth-challenge-response/index.ts'),
+        runtime: lambda.Runtime.NODEJS_22_X,
+        timeout: Duration.seconds(5),
+      }
+    );
+
+    // addTrigger auto-grants Cognito permission to invoke each function —
+    // no manual resource policy needed.
+    userPool.addTrigger(cognito.UserPoolOperation.DEFINE_AUTH_CHALLENGE, defineAuthChallengeFn);
+    userPool.addTrigger(cognito.UserPoolOperation.CREATE_AUTH_CHALLENGE, createAuthChallengeFn);
+    userPool.addTrigger(
+      cognito.UserPoolOperation.VERIFY_AUTH_CHALLENGE_RESPONSE,
+      verifyAuthChallengeResponseFn
+    );
 
     // ---- AppSync ----
 
@@ -190,8 +241,6 @@ export class PoplaBackendStack extends Stack {
       file: string;
     }> = [
       { dataSource: playersDS, typeName: 'Query', fieldName: 'listPlayers', file: 'Query.listPlayers.js' },
-      { dataSource: playersDS, typeName: 'Mutation', fieldName: 'createPlayer', file: 'Mutation.createPlayer.js' },
-      { dataSource: playersDS, typeName: 'Mutation', fieldName: 'updatePlayer', file: 'Mutation.updatePlayer.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'listSeasons', file: 'Query.listSeasons.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'getSeason', file: 'Query.getSeason.js' },
       { dataSource: seasonsDS, typeName: 'Mutation', fieldName: 'createSeason', file: 'Mutation.createSeason.js' },
@@ -296,6 +345,132 @@ export class PoplaBackendStack extends Stack {
       code: appsync.Code.fromAsset(
         path.join(RESOLVERS_DIR, 'Mutation.updateMatchday.js')
       ),
+    });
+
+    // ---- Player provisioning + admin management Lambda resolvers ----
+    // createPlayer/updatePlayer/promoteToAdmin/demoteFromAdmin/
+    // listAdminPhoneNumbers all provision or inspect Cognito state
+    // (AdminCreateUser/AdminDeleteUser/AdminAddUserToGroup/
+    // AdminRemoveUserFromGroup/AdminListGroupsForUser/ListUsersInGroup),
+    // which is real logic beyond a DynamoDB write — see
+    // ARCHITECTURE.md's Auth section.
+
+    const playerAuthEnv = {
+      PLAYERS_TABLE: playersTable.tableName,
+      USER_POOL_ID: userPool.userPoolId,
+    };
+
+    const createPlayerFn = new NodejsFunction(this, 'CreatePlayerFn', {
+      entry: path.join(__dirname, '../lambda/create-player/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: playerAuthEnv,
+    });
+    playersTable.grantReadWriteData(createPlayerFn);
+    createPlayerFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cognito-idp:AdminCreateUser'],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const createPlayerDS = api.addLambdaDataSource('CreatePlayerDataSource', createPlayerFn);
+    createPlayerDS.createResolver('MutationCreatePlayerResolver', {
+      typeName: 'Mutation',
+      fieldName: 'createPlayer',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.createPlayer.js')),
+    });
+
+    const updatePlayerFn = new NodejsFunction(this, 'UpdatePlayerFn', {
+      entry: path.join(__dirname, '../lambda/update-player/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: playerAuthEnv,
+    });
+    playersTable.grantReadWriteData(updatePlayerFn);
+    updatePlayerFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'cognito-idp:AdminCreateUser',
+          'cognito-idp:AdminDeleteUser',
+          'cognito-idp:AdminListGroupsForUser',
+        ],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const updatePlayerDS = api.addLambdaDataSource('UpdatePlayerDataSource', updatePlayerFn);
+    updatePlayerDS.createResolver('MutationUpdatePlayerResolver', {
+      typeName: 'Mutation',
+      fieldName: 'updatePlayer',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.updatePlayer.js')),
+    });
+
+    const promoteAdminFn = new NodejsFunction(this, 'PromoteAdminFn', {
+      entry: path.join(__dirname, '../lambda/promote-admin/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: playerAuthEnv,
+    });
+    playersTable.grantReadData(promoteAdminFn);
+    promoteAdminFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cognito-idp:AdminAddUserToGroup'],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const promoteAdminDS = api.addLambdaDataSource('PromoteAdminDataSource', promoteAdminFn);
+    promoteAdminDS.createResolver('MutationPromoteToAdminResolver', {
+      typeName: 'Mutation',
+      fieldName: 'promoteToAdmin',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.promoteToAdmin.js')),
+    });
+
+    const demoteAdminFn = new NodejsFunction(this, 'DemoteAdminFn', {
+      entry: path.join(__dirname, '../lambda/demote-admin/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: playerAuthEnv,
+    });
+    playersTable.grantReadData(demoteAdminFn);
+    demoteAdminFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cognito-idp:AdminRemoveUserFromGroup'],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const demoteAdminDS = api.addLambdaDataSource('DemoteAdminDataSource', demoteAdminFn);
+    demoteAdminDS.createResolver('MutationDemoteFromAdminResolver', {
+      typeName: 'Mutation',
+      fieldName: 'demoteFromAdmin',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.demoteFromAdmin.js')),
+    });
+
+    const listAdminsFn = new NodejsFunction(this, 'ListAdminsFn', {
+      entry: path.join(__dirname, '../lambda/list-admins/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: { USER_POOL_ID: userPool.userPoolId },
+    });
+    listAdminsFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cognito-idp:ListUsersInGroup'],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const listAdminsDS = api.addLambdaDataSource('ListAdminsDataSource', listAdminsFn);
+    listAdminsDS.createResolver('QueryListAdminPhoneNumbersResolver', {
+      typeName: 'Query',
+      fieldName: 'listAdminPhoneNumbers',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Query.listAdminPhoneNumbers.js')),
     });
 
     // ---- Outputs ----

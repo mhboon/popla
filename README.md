@@ -106,31 +106,30 @@ From here on, every push to `main` runs `.github/workflows/deploy.yml`.
 
 ## Admin users
 
-Phase 1 has no self-signup. Create the first admin manually. The User
-Pool uses `email` as a sign-in *alias*, not as the username itself, so
-pick a friendly `--username` (what you'll actually type to sign in) and
-pass the real email address as an attribute (needed for password
-recovery and Cognito's required-attribute check):
+Login is passwordless SMS OTP for everyone, admin and participant alike
+(see `ARCHITECTURE.md`'s Auth section) — a Cognito user's `Username` is
+their E.164 phone number, and admin is just `Admins`-group membership on
+top of an otherwise ordinary user. Existing admins can promote/demote
+other registered participants through the app's UI, but the *first*
+admin — and any "break-glass" admin not tied to a participant record at
+all — has to be created manually:
 
 ```bash
 aws cognito-idp admin-create-user --user-pool-id <UserPoolId> \
-  --username <friendly-username> \
-  --user-attributes Name=email,Value=<email> Name=email_verified,Value=true
+  --username <phone-number-e164, e.g. +31612345678> \
+  --message-action SUPPRESS
 aws cognito-idp admin-add-user-to-group --user-pool-id <UserPoolId> \
-  --username <friendly-username> --group-name Admins
+  --username <same-phone-number> --group-name Admins
 ```
 
 (`UserPoolId` is printed as a stack output after deploying
-`PoplaBackendStack`.)
+`PoplaBackendStack`.) If this phone number should also be tied to a
+participant record (so it shows up as a named player, not just a bare
+login), register it as a participant through the app first — that
+provisions the same Cognito user for you — then just run the
+`admin-add-user-to-group` command above.
 
-Note: the User Pool used to be configured with email as the *username*
-itself (`UsernameAttributes`), which made Cognito silently generate a
-random technical username and accept only email at sign-in. It's now
-`AliasAttributes` instead, which is what makes the friendly `--username`
-above possible — but that setting is immutable on an existing pool, so
-switching to it replaces the pool. If you're upgrading an existing
-deployment, every existing user (including any admin you already
-created) needs to be recreated with the command above after this
-deploys; the old pool is retained (not deleted) by CDK, so nothing is
-lost, but it becomes orphaned and can be deleted manually via the
-console/CLI once you've confirmed the new one works.
+Note: the User Pool used to require a password (`admin-create-user`
+without `--message-action SUPPRESS` would set a temporary one, forcing a
+first-sign-in password change). That's gone — there's no password
+anywhere in the app now, only the SMS-code challenge.
