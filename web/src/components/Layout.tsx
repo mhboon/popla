@@ -10,7 +10,7 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <header className="app-header">
         <Link to="/" className="brand">
-          Popla Cup
+          <img src="/logo-popla.png" alt="Popla Cup" className="brand-logo" />
         </Link>
         {user && (
           <nav>
