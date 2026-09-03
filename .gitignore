@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+local/
 
 # CDK — cdk.out and cdk.context.json can contain account-specific data
 # (resolved account IDs, VPC/AZ lookups, etc.) and must never be committed.

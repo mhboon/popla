@@ -1,0 +1,13 @@
+{
+  "name": "Popla Cup",
+  "short_name": "Popla Cup",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef3f2",
+  "theme_color": "#0e6e63",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

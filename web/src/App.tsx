@@ -13,7 +13,8 @@ import { MatchdayPage } from './pages/MatchdayPage';
 
 function HomeRedirect() {
   const { user } = useAuth();
-  return <Navigate to={user ? '/participants' : '/login'} replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={user.isAdmin ? '/participants' : '/seasons'} replace />;
 }
 
 export function App() {
@@ -34,7 +35,7 @@ export function App() {
           <Route
             path="/seasons"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireAdmin={false}>
                 <SeasonsPage />
               </ProtectedRoute>
             }
@@ -42,7 +43,7 @@ export function App() {
           <Route
             path="/seasons/:seasonId/ranking"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireAdmin={false}>
                 <SeasonRankingPage />
               </ProtectedRoute>
             }
@@ -50,7 +51,7 @@ export function App() {
           <Route
             path="/matchdays"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireAdmin={false}>
                 <MatchdaysPage />
               </ProtectedRoute>
             }
@@ -74,7 +75,7 @@ export function App() {
           <Route
             path="/matchdays/:matchdayId"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireAdmin={false}>
                 <MatchdayPage />
               </ProtectedRoute>
             }

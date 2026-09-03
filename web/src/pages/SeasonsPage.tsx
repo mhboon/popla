@@ -7,6 +7,7 @@ import type { Season } from '../types/graphql';
 export function SeasonsPage() {
   const { user } = useAuth();
   const idToken = user!.idToken;
+  const isAdmin = user!.isAdmin;
 
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,30 +57,32 @@ export function SeasonsPage() {
       <h1>Seasons</h1>
       {error && <p className="form-error">{error}</p>}
 
-      <section>
-        <h2>Start a new season</h2>
-        {hasActiveSeason && (
-          <p>An active season already exists — close it first to start a new one.</p>
-        )}
-        <form onSubmit={handleCreate} className="inline-form">
-          <label>
-            Name
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-          <label>
-            Start date
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              required
-            />
-          </label>
-          <button type="submit" className="button-primary" disabled={creating || hasActiveSeason}>
-            {creating ? 'Creating…' : 'Create season'}
-          </button>
-        </form>
-      </section>
+      {isAdmin && (
+        <section>
+          <h2>Start a new season</h2>
+          {hasActiveSeason && (
+            <p>An active season already exists — close it first to start a new one.</p>
+          )}
+          <form onSubmit={handleCreate} className="inline-form">
+            <label>
+              Name
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+            </label>
+            <label>
+              Start date
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                required
+              />
+            </label>
+            <button type="submit" className="button-primary" disabled={creating || hasActiveSeason}>
+              {creating ? 'Creating…' : 'Create season'}
+            </button>
+          </form>
+        </section>
+      )}
 
       <section>
         <h2>All seasons</h2>

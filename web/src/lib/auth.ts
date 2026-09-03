@@ -11,35 +11,49 @@ const userPool = new CognitoUserPool({
   ClientId: config.userPoolClientId,
 });
 
-export type LoginResult =
+export type SubmitCodeResult =
   | { type: 'success'; session: CognitoUserSession }
-  | { type: 'newPasswordRequired'; completeNewPassword: (newPassword: string) => Promise<CognitoUserSession> };
+  | { type: 'incorrect'; submitCode: (code: string) => Promise<SubmitCodeResult> };
+
+export type OtpResult = {
+  type: 'codeRequired';
+  submitCode: (code: string) => Promise<SubmitCodeResult>;
+};
 
 /**
- * Admins are created via `aws cognito-idp admin-create-user`, which sets a
- * temporary password requiring change on first sign-in — the
- * newPasswordRequired branch handles that one-time flow.
+ * Passwordless login, for everyone — admin and participant alike, see
+ * ARCHITECTURE.md's Auth section — via Cognito's CUSTOM_AUTH flow:
+ * phone number in, an SMS code goes out, submitCode verifies it. A wrong
+ * code (under the trigger Lambdas' attempt cap) re-issues another
+ * challenge rather than failing outright, hence the recursive
+ * `submitCode` on the 'incorrect' branch rather than a rejected promise.
  */
-export function login(username: string, password: string): Promise<LoginResult> {
+export function requestOtp(phone: string): Promise<OtpResult> {
   return new Promise((resolve, reject) => {
-    const cognitoUser = new CognitoUser({ Username: username, Pool: userPool });
-    const authDetails = new AuthenticationDetails({ Username: username, Password: password });
-
-    cognitoUser.authenticateUser(authDetails, {
-      onSuccess: (session) => resolve({ type: 'success', session }),
-      onFailure: (err) => reject(err),
-      newPasswordRequired: () => {
+    const cognitoUser = new CognitoUser({ Username: phone, Pool: userPool });
+    const authDetails = new AuthenticationDetails({ Username: phone });
+    cognitoUser.initiateAuth(authDetails, {
+      customChallenge: () =>
         resolve({
-          type: 'newPasswordRequired',
-          completeNewPassword: (newPassword: string) =>
-            new Promise((res, rej) => {
-              cognitoUser.completeNewPasswordChallenge(newPassword, {}, {
-                onSuccess: (session) => res(session),
-                onFailure: (err) => rej(err),
-              });
-            }),
-        });
-      },
+          type: 'codeRequired',
+          submitCode: (code) => answerChallenge(cognitoUser, code),
+        }),
+      onSuccess: () => reject(new Error('Unexpected: signed in before a code was requested')),
+      onFailure: reject,
+    });
+  });
+}
+
+function answerChallenge(cognitoUser: CognitoUser, code: string): Promise<SubmitCodeResult> {
+  return new Promise((resolve, reject) => {
+    cognitoUser.sendCustomChallengeAnswer(code, {
+      onSuccess: (session) => resolve({ type: 'success', session }),
+      onFailure: reject,
+      customChallenge: () =>
+        resolve({
+          type: 'incorrect',
+          submitCode: (nextCode) => answerChallenge(cognitoUser, nextCode),
+        }),
     });
   });
 }

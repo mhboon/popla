@@ -8,6 +8,7 @@ import type { Matchday, Season } from '../types/graphql';
 export function MatchdaysPage() {
   const { user } = useAuth();
   const idToken = user!.idToken;
+  const isAdmin = user!.isAdmin;
 
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [matchdays, setMatchdays] = useState<Matchday[]>([]);
@@ -43,17 +44,19 @@ export function MatchdaysPage() {
     <div>
       <h1>Matchdays</h1>
 
-      <div className="page-actions">
-        {activeSeason ? (
-          <Link to="/matchdays/new" className="button-primary">
-            New matchday
-          </Link>
-        ) : (
-          <p>
-            No active season — <Link to="/seasons">start one</Link> first.
-          </p>
-        )}
-      </div>
+      {isAdmin && (
+        <div className="page-actions">
+          {activeSeason ? (
+            <Link to="/matchdays/new" className="button-primary">
+              New matchday
+            </Link>
+          ) : (
+            <p>
+              No active season — <Link to="/seasons">start one</Link> first.
+            </p>
+          )}
+        </div>
+      )}
 
       <section>
         <h2>Active matchdays</h2>

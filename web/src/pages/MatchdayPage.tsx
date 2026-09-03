@@ -82,6 +82,7 @@ export function MatchdayPage() {
   const { matchdayId } = useParams<{ matchdayId: string }>();
   const { user } = useAuth();
   const idToken = user!.idToken;
+  const isAdmin = user!.isAdmin;
 
   const [matchday, setMatchday] = useState<Matchday | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -185,7 +186,7 @@ export function MatchdayPage() {
         <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
           {matchday.status.replace('_', ' ')}
         </span>
-        {matchday.status === 'SETUP' && (
+        {isAdmin && matchday.status === 'SETUP' && (
           <>
             {' · '}
             <Link to={`/matchdays/${matchday.matchdayId}/edit`}>Edit</Link>
@@ -213,7 +214,7 @@ export function MatchdayPage() {
 
       {activeTab === 'matches' ? (
         <>
-          {currentRoundComplete && (
+          {isAdmin && currentRoundComplete && (
             <div className="matchday-next-actions">
               <button
                 type="button"
@@ -234,21 +235,23 @@ export function MatchdayPage() {
             </div>
           )}
 
-          <ConfirmDialog
-            open={confirmingClose}
-            title="Close this matchday?"
-            message="This finalizes the day ranking and adds season points for every participant. It can't be undone."
-            confirmLabel="Close matchday"
-            danger
-            busy={closing}
-            onCancel={() => setConfirmingClose(false)}
-            onConfirm={() => {
-              setConfirmingClose(false);
-              handleCloseMatchday();
-            }}
-          />
+          {isAdmin && (
+            <ConfirmDialog
+              open={confirmingClose}
+              title="Close this matchday?"
+              message="This finalizes the day ranking and adds season points for every participant. It can't be undone."
+              confirmLabel="Close matchday"
+              danger
+              busy={closing}
+              onCancel={() => setConfirmingClose(false)}
+              onConfirm={() => {
+                setConfirmingClose(false);
+                handleCloseMatchday();
+              }}
+            />
+          )}
 
-          {currentRound === 0 && isOpen && (
+          {isAdmin && currentRound === 0 && isOpen && (
             <button
               type="button"
               className="button-primary"
@@ -282,7 +285,7 @@ export function MatchdayPage() {
                       idToken={idToken}
                       matchdayId={matchdayId!}
                       onSaved={refresh}
-                      readOnly={readOnly}
+                      readOnly={readOnly || !isAdmin}
                     />
                   ))}
                 </div>
@@ -394,7 +397,11 @@ function MatchCard({
   onSaved: () => Promise<void>;
   readOnly: boolean;
 }) {
-  const [editing, setEditing] = useState(match.status === 'PENDING');
+  // A PENDING match normally opens straight into the score form — except
+  // when readOnly, where showing an editable, savable form would defeat
+  // the point (see MatchdayPage's readOnly computation, which folds in
+  // !isAdmin for participants).
+  const [editing, setEditing] = useState(match.status === 'PENDING' && !readOnly);
   const [team1Games, setTeam1Games] = useState(match.team1Games ?? 0);
   const [team2Games, setTeam2Games] = useState(match.team2Games ?? 0);
   const [saving, setSaving] = useState(false);
@@ -462,6 +469,10 @@ function MatchCard({
             </button>
           )}
         </form>
+      ) : match.status === 'PENDING' ? (
+        <div className="score-display">
+          <em>Not played yet</em>
+        </div>
       ) : (
         <div className="score-display">
           <strong>
