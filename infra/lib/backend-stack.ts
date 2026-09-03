@@ -375,7 +375,17 @@ export class PoplaBackendStack extends Stack {
     );
 
     const createPlayerDS = api.addLambdaDataSource('CreatePlayerDataSource', createPlayerFn);
-    createPlayerDS.createResolver('MutationCreatePlayerResolver', {
+    // Logical ID must exactly match the old native resolver's
+    // (`${typeName}${fieldName}Resolver` from the nativeResolvers loop,
+    // i.e. lowercase-first-letter 'create...') — createResolver() always
+    // scopes under the shared `api` construct regardless of which data
+    // source it's called on, so this ID is what CloudFormation actually
+    // keys the resolver's identity on. A different ID here reads as a
+    // brand-new AWS::AppSync::Resolver to CloudFormation, which then
+    // collides with the still-live old one at deploy time (AppSync only
+    // allows one resolver per type+field) instead of just updating its
+    // dataSourceName/code in place.
+    createPlayerDS.createResolver('MutationcreatePlayerResolver', {
       typeName: 'Mutation',
       fieldName: 'createPlayer',
       runtime: JS_RUNTIME,
@@ -401,7 +411,8 @@ export class PoplaBackendStack extends Stack {
     );
 
     const updatePlayerDS = api.addLambdaDataSource('UpdatePlayerDataSource', updatePlayerFn);
-    updatePlayerDS.createResolver('MutationUpdatePlayerResolver', {
+    // Same logical-ID-must-match reasoning as createPlayer's resolver above.
+    updatePlayerDS.createResolver('MutationupdatePlayerResolver', {
       typeName: 'Mutation',
       fieldName: 'updatePlayer',
       runtime: JS_RUNTIME,
