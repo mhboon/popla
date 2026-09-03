@@ -15,20 +15,20 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/aws-lambda": "^8.10.145",
-    "@types/node": "^26.2.0",
-    "aws-cdk": "^2.1017.0",
+    "@types/node": "^26.4.0",
+    "aws-cdk": "^2.1139.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.8.1",
-    "tsx": "^4.19.2",
+    "eslint": "^10.9.1",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
-    "typescript-eslint": "^8.15.0"
+    "typescript-eslint": "^8.68.0"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.700.0",
-    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/client-dynamodb": "^3.1121.0",
     "@aws-sdk/client-sns": "^3.700.0",
-    "@aws-sdk/lib-dynamodb": "^3.700.0",
-    "aws-cdk-lib": "^2.170.0",
+    "@aws-sdk/lib-dynamodb": "^3.1121.0",
+    "aws-cdk-lib": "^2.267.0",
     "constructs": "^10.4.2",
     "source-map-support": "^0.5.21"
   }
