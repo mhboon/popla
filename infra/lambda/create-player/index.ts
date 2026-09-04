@@ -4,9 +4,11 @@ import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import {
   CognitoIdentityProviderClient,
   AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
   UsernameExistsException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { PHONE_REGEX, PHONE_FORMAT_ERROR } from '../shared/phone';
+import { randomUnusedPassword } from '../shared/cognito';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const cognito = new CognitoIdentityProviderClient({});
@@ -45,6 +47,16 @@ export const handler = async (event: { arguments: CreatePlayerArgs }) => {
         })
       );
       cognitoSub = User?.Attributes?.find((a) => a.Name === 'sub')?.Value;
+      // Otherwise the user is stuck in FORCE_CHANGE_PASSWORD forever —
+      // see infra/lambda/shared/cognito.ts.
+      await cognito.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: USER_POOL_ID,
+          Username: phone,
+          Password: randomUnusedPassword(),
+          Permanent: true,
+        })
+      );
     } catch (err) {
       if (err instanceof UsernameExistsException) {
         throw new Error('This phone number is already registered to another participant.', {

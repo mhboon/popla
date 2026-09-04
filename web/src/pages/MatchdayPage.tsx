@@ -7,7 +7,7 @@ import {
   getMatchday,
   getMatchdayRanking,
   listMatches,
-  listPlayers,
+  listPlayerNames,
   recordSetResult,
 } from '../lib/api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -102,7 +102,7 @@ export function MatchdayPage() {
       const [md, matchList, playerList] = await Promise.all([
         getMatchday(idToken, matchdayId),
         listMatches(idToken, matchdayId),
-        listPlayers(idToken),
+        listPlayerNames(idToken),
       ]);
       setMatchday(md);
       setMatches(matchList);

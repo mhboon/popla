@@ -215,16 +215,31 @@ incrementally.
 - **Passwordless flow is implemented as Cognito `CUSTOM_AUTH`**, handled
   entirely by three small Lambda triggers on the User Pool
   (`define-auth-challenge`, `create-auth-challenge`,
-  `verify-auth-challenge-response`) — the code and its 10-minute expiry
-  travel via Cognito's own challenge session
-  (`privateChallengeParameters`), not a DynamoDB table.
-  `create-auth-challenge` sends the SMS directly via SNS `Publish`. The
-  User Pool Client has `preventUserExistenceErrors: true` so an unknown
-  phone number gets the same "check your phone" response as a real one
-  (no SMS actually sent) — this masks which numbers are registered.
-  Login itself never touches AppSync — the frontend talks to Cognito
-  directly via `amazon-cognito-identity-js`, same as any other Cognito
-  auth flow.
+  `verify-auth-challenge-response`). The code and its 10-minute expiry
+  round-trip through Cognito's own challenge session
+  (`privateChallengeParameters`) for verification, but `create-auth-
+  challenge` also persists them in a small DynamoDB table
+  (`PoplaOtpChallenges`, PK `phone`, TTL'd) so a wrong guess (which
+  re-invokes `create-auth-challenge`) can reuse the same code instead of
+  silently generating and sending a new one — a retry must never
+  invalidate the code the participant already has in their SMS app. That
+  same table also enforces a per-phone SMS rate limit (5 sends/hour):
+  past the cap, a code is still generated and stored so the caller sees
+  identical behavior, but no further SMS goes out — the real protection
+  against someone hammering a specific person's number, on top of the
+  account-level SNS spend limit (set manually, not IaC-managed — see
+  README.md).
+  `create-auth-challenge` sends the SMS directly via SNS `Publish`
+  (as `Transactional`, not the default `Promotional`, since carriers can
+  deprioritize the latter). The User Pool Client has
+  `preventUserExistenceErrors: true`, and both `define-auth-challenge`
+  and `create-auth-challenge` treat an unregistered number identically
+  to a real one (same challenge shape, no real SMS, and
+  `verify-auth-challenge-response` always rejects it) — rather than
+  failing fast, which would let a caller learn a number isn't registered
+  just from how quickly the request fails. Login itself never touches
+  AppSync — the frontend talks to Cognito directly via
+  `amazon-cognito-identity-js`, same as any other Cognito auth flow.
 - `Admins` group — **admin is purely group membership on an otherwise
   ordinary phone-based Cognito user**, not a separate account type
   (this was already true conceptually; login unification just extends
@@ -235,10 +250,21 @@ incrementally.
   `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema —
   enforced by AppSync itself. Everything else under `Query` is open to
   any authenticated user by default; the two PII fields on `Player`
-  (`phone`, `email`) are field-gated to `Admins` instead (both nullable,
-  so a non-admin caller gets `null` rather than an error), and
-  `listAdminPhoneNumbers` keeps its own explicit `Admins` restriction
-  since it's admin-management UI data.
+  (`phone`, `email`) are field-gated to `Admins` instead. A non-admin
+  caller does resolve those two fields to `null` since both are
+  nullable — but AppSync *also* appends an `Unauthorized` entry to the
+  response's top-level `errors` array for each denied field, and
+  `web/src/lib/graphqlClient.ts` throws on any `errors` present. So a
+  non-admin `listPlayers` call that selects `phone`/`email` fails
+  outright, not "succeeds with nulls" — the two participant-facing
+  pages that need playerId → displayName resolution
+  (`SeasonRankingPage`, `MatchdayPage`) call `listPlayerNames` instead
+  (`web/src/lib/api.ts`), which selects only `playerId displayName
+  createdAt` and so never triggers the field-auth error in the first
+  place; `ParticipantsPage`/`MatchdaySetupPage` (admin-only routes)
+  keep using `listPlayers`'s full selection. `listAdminPhoneNumbers`
+  keeps its own explicit `Admins` restriction since it's
+  admin-management UI data.
 - **Managing admin status**: an existing admin can promote/demote other
   players via the UI (`promoteToAdmin`/`demoteFromAdmin` — the latter
   refuses to demote the caller themselves, to avoid stranding the UI

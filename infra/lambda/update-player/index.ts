@@ -3,11 +3,13 @@ import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-
 import {
   CognitoIdentityProviderClient,
   AdminCreateUserCommand,
+  AdminSetUserPasswordCommand,
   AdminDeleteUserCommand,
   AdminListGroupsForUserCommand,
   UsernameExistsException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { PHONE_REGEX, PHONE_FORMAT_ERROR } from '../shared/phone';
+import { randomUnusedPassword } from '../shared/cognito';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const cognito = new CognitoIdentityProviderClient({});
@@ -81,6 +83,14 @@ export const handler = async (event: { arguments: UpdatePlayerArgs }) => {
           })
         );
         newCognitoSub = User?.Attributes?.find((a) => a.Name === 'sub')?.Value ?? null;
+        await cognito.send(
+          new AdminSetUserPasswordCommand({
+            UserPoolId: USER_POOL_ID,
+            Username: phone,
+            Password: randomUnusedPassword(),
+            Permanent: true,
+          })
+        );
       } catch (err) {
         if (err instanceof UsernameExistsException) {
           throw new Error('This phone number is already registered to another participant.', {
