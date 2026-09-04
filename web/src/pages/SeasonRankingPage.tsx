@@ -7,7 +7,7 @@ import {
   getSeasonStanding,
   getSeasonWinnerRanking,
   listMatchdaysBySeason,
-  listPlayers,
+  listPlayerNames,
   listSeasons,
   reopenSeason,
 } from '../lib/api';
@@ -46,7 +46,7 @@ export function SeasonRankingPage() {
         getSeasonStanding(idToken, seasonId),
         getSeasonWinnerRanking(idToken, seasonId),
         listMatchdaysBySeason(idToken, seasonId),
-        listPlayers(idToken),
+        listPlayerNames(idToken),
       ]);
       setSeason(s);
       setHasOtherActiveSeason(allSeasons.some((x) => x.status === 'ACTIVE' && x.seasonId !== seasonId));

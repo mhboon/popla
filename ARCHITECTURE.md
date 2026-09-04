@@ -215,16 +215,40 @@ incrementally.
 - **Passwordless flow is implemented as Cognito `CUSTOM_AUTH`**, handled
   entirely by three small Lambda triggers on the User Pool
   (`define-auth-challenge`, `create-auth-challenge`,
-  `verify-auth-challenge-response`) — the code and its 10-minute expiry
-  travel via Cognito's own challenge session
-  (`privateChallengeParameters`), not a DynamoDB table.
-  `create-auth-challenge` sends the SMS directly via SNS `Publish`. The
-  User Pool Client has `preventUserExistenceErrors: true` so an unknown
-  phone number gets the same "check your phone" response as a real one
-  (no SMS actually sent) — this masks which numbers are registered.
-  Login itself never touches AppSync — the frontend talks to Cognito
-  directly via `amazon-cognito-identity-js`, same as any other Cognito
-  auth flow.
+  `verify-auth-challenge-response`). The current code, its 10-minute
+  expiry, and a per-phone send count all live in one DynamoDB table
+  (`PoplaOtpChallenges`, PK `phone`, TTL'd) — deliberately **not**
+  Cognito's own per-round `privateChallengeParameters`, and this is
+  load-bearing, not a style choice: `privateChallengeParameters` is a
+  snapshot cached separately for each individual challenge round, so a
+  Lambda that trusted it would let an *abandoned* round stay completable
+  with its original code for the full 10 minutes even after a newer SMS
+  was sent (e.g. the participant left an old browser tab open, then hit
+  "Resend"). `verify-auth-challenge-response` instead reads the row for
+  `event.userName` fresh, every time, so **sending a new code
+  immediately invalidates any code sent before it** — from any device or
+  tab, not just within the same session. A wrong guess (which
+  re-invokes `create-auth-challenge` with a non-empty `session`) is the
+  one path that deliberately does *not* touch the table — it must not
+  generate a new code or send a new SMS, only let the existing one keep
+  being checked. Sends are capped at **3 per phone per rolling 24
+  hours** (`MAX_SENDS_PER_WINDOW` in `create-auth-challenge`); past the
+  cap the currently-live code (if any) is left untouched rather than
+  cleared, and no further SMS goes out, but the response looks identical
+  to the caller either way — the real protection against someone
+  hammering a specific person's number, on top of the account-level SNS
+  spend limit (set manually, not IaC-managed — see README.md).
+  `create-auth-challenge` sends the SMS directly via SNS `Publish`
+  (as `Transactional`, not the default `Promotional`, since carriers can
+  deprioritize the latter). The User Pool Client has
+  `preventUserExistenceErrors: true`, and both `define-auth-challenge`
+  and `create-auth-challenge` treat an unregistered number identically
+  to a real one (same challenge shape, no real SMS, and
+  `verify-auth-challenge-response` always rejects it) — rather than
+  failing fast, which would let a caller learn a number isn't registered
+  just from how quickly the request fails. Login itself never touches
+  AppSync — the frontend talks to Cognito directly via
+  `amazon-cognito-identity-js`, same as any other Cognito auth flow.
 - `Admins` group — **admin is purely group membership on an otherwise
   ordinary phone-based Cognito user**, not a separate account type
   (this was already true conceptually; login unification just extends
@@ -235,10 +259,21 @@ incrementally.
   `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema —
   enforced by AppSync itself. Everything else under `Query` is open to
   any authenticated user by default; the two PII fields on `Player`
-  (`phone`, `email`) are field-gated to `Admins` instead (both nullable,
-  so a non-admin caller gets `null` rather than an error), and
-  `listAdminPhoneNumbers` keeps its own explicit `Admins` restriction
-  since it's admin-management UI data.
+  (`phone`, `email`) are field-gated to `Admins` instead. A non-admin
+  caller does resolve those two fields to `null` since both are
+  nullable — but AppSync *also* appends an `Unauthorized` entry to the
+  response's top-level `errors` array for each denied field, and
+  `web/src/lib/graphqlClient.ts` throws on any `errors` present. So a
+  non-admin `listPlayers` call that selects `phone`/`email` fails
+  outright, not "succeeds with nulls" — the two participant-facing
+  pages that need playerId → displayName resolution
+  (`SeasonRankingPage`, `MatchdayPage`) call `listPlayerNames` instead
+  (`web/src/lib/api.ts`), which selects only `playerId displayName
+  createdAt` and so never triggers the field-auth error in the first
+  place; `ParticipantsPage`/`MatchdaySetupPage` (admin-only routes)
+  keep using `listPlayers`'s full selection. `listAdminPhoneNumbers`
+  keeps its own explicit `Admins` restriction since it's
+  admin-management UI data.
 - **Managing admin status**: an existing admin can promote/demote other
   players via the UI (`promoteToAdmin`/`demoteFromAdmin` — the latter
   refuses to demote the caller themselves, to avoid stranding the UI

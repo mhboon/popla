@@ -104,6 +104,18 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'winnerPoints', type: dynamodb.AttributeType.NUMBER },
     });
 
+    // Stores the current OTP code + per-phone SMS send-rate state for the
+    // CUSTOM_AUTH challenge Lambdas below (create-auth-challenge reads/
+    // writes it; nothing else touches it). TTL'd well past the rate
+    // window so stale rows clean themselves up.
+    const otpChallengesTable = new dynamodb.Table(this, 'OtpChallengesTable', {
+      tableName: 'PoplaOtpChallenges',
+      partitionKey: { name: 'phone', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY,
+      timeToLiveAttribute: 'ttl',
+    });
+
     // ---- Cognito ----
 
     // Construct ID is 'UserPoolV2', not 'UserPool': switching
@@ -154,8 +166,6 @@ export class PoplaBackendStack extends Stack {
     });
 
     // ---- Cognito CUSTOM_AUTH challenge Lambdas (SMS OTP) ----
-    // No DynamoDB access needed — the code + expiry travel via Cognito's
-    // own challenge session (privateChallengeParameters), not a table.
 
     const defineAuthChallengeFn = new NodejsFunction(this, 'DefineAuthChallengeFn', {
       entry: path.join(__dirname, '../lambda/define-auth-challenge/index.ts'),
@@ -167,7 +177,9 @@ export class PoplaBackendStack extends Stack {
       entry: path.join(__dirname, '../lambda/create-auth-challenge/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
+      environment: { OTP_CHALLENGES_TABLE: otpChallengesTable.tableName },
     });
+    otpChallengesTable.grantReadWriteData(createAuthChallengeFn);
     // Direct-to-phone-number SNS Publish can't be scoped tighter than '*'.
     createAuthChallengeFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ['sns:Publish'], resources: ['*'] })
@@ -180,8 +192,10 @@ export class PoplaBackendStack extends Stack {
         entry: path.join(__dirname, '../lambda/verify-auth-challenge-response/index.ts'),
         runtime: lambda.Runtime.NODEJS_22_X,
         timeout: Duration.seconds(5),
+        environment: { OTP_CHALLENGES_TABLE: otpChallengesTable.tableName },
       }
     );
+    otpChallengesTable.grantReadData(verifyAuthChallengeResponseFn);
 
     // addTrigger auto-grants Cognito permission to invoke each function —
     // no manual resource policy needed.
@@ -369,7 +383,9 @@ export class PoplaBackendStack extends Stack {
     playersTable.grantReadWriteData(createPlayerFn);
     createPlayerFn.addToRolePolicy(
       new iam.PolicyStatement({
-        actions: ['cognito-idp:AdminCreateUser'],
+        // AdminSetUserPassword moves the new user out of
+        // FORCE_CHANGE_PASSWORD — see infra/lambda/shared/cognito.ts.
+        actions: ['cognito-idp:AdminCreateUser', 'cognito-idp:AdminSetUserPassword'],
         resources: [userPool.userPoolArn],
       })
     );
@@ -403,6 +419,7 @@ export class PoplaBackendStack extends Stack {
       new iam.PolicyStatement({
         actions: [
           'cognito-idp:AdminCreateUser',
+          'cognito-idp:AdminSetUserPassword',
           'cognito-idp:AdminDeleteUser',
           'cognito-idp:AdminListGroupsForUser',
         ],

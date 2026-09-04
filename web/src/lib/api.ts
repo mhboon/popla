@@ -10,6 +10,13 @@ import type {
 } from '../types/graphql';
 
 const PLAYER_FIELDS = 'playerId displayName phone email createdAt';
+// phone/email are field-gated to Admins (see ARCHITECTURE.md's Auth
+// section) — AppSync doesn't just null those fields out for a
+// non-admin caller, it also adds an Unauthorized error to the
+// response, which graphqlRequest treats as a failure. Participant-
+// facing pages that only need playerId -> displayName resolution must
+// not select those two fields, or the whole call throws.
+const PLAYER_NAME_FIELDS = 'playerId displayName createdAt';
 const SEASON_FIELDS = 'seasonId name status startDate closedAt';
 const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status';
 const MATCH_FIELDS = 'matchdayId round court team1PlayerIds team2PlayerIds team1Games team2Games status';
@@ -17,10 +24,20 @@ const MATCHDAY_RESULT_FIELDS =
   'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints winnerPoint';
 const SEASON_STANDING_FIELDS = 'seasonId playerId totalPoints matchdaysPlayed winnerPoints';
 
+// Admin-only (ParticipantsPage, MatchdaySetupPage) — includes phone/email.
 export function listPlayers(idToken: string) {
   return graphqlRequest<{ listPlayers: Player[] }>(
     idToken,
     `query { listPlayers { ${PLAYER_FIELDS} } }`
+  ).then((d) => d.listPlayers);
+}
+
+// For participant-reachable pages (SeasonRankingPage, MatchdayPage) —
+// names only, so it works for a non-admin caller. See PLAYER_NAME_FIELDS.
+export function listPlayerNames(idToken: string) {
+  return graphqlRequest<{ listPlayers: Player[] }>(
+    idToken,
+    `query { listPlayers { ${PLAYER_NAME_FIELDS} } }`
   ).then((d) => d.listPlayers);
 }
 
