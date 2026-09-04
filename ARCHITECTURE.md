@@ -215,20 +215,29 @@ incrementally.
 - **Passwordless flow is implemented as Cognito `CUSTOM_AUTH`**, handled
   entirely by three small Lambda triggers on the User Pool
   (`define-auth-challenge`, `create-auth-challenge`,
-  `verify-auth-challenge-response`). The code and its 10-minute expiry
-  round-trip through Cognito's own challenge session
-  (`privateChallengeParameters`) for verification, but `create-auth-
-  challenge` also persists them in a small DynamoDB table
-  (`PoplaOtpChallenges`, PK `phone`, TTL'd) so a wrong guess (which
-  re-invokes `create-auth-challenge`) can reuse the same code instead of
-  silently generating and sending a new one — a retry must never
-  invalidate the code the participant already has in their SMS app. That
-  same table also enforces a per-phone SMS rate limit (5 sends/hour):
-  past the cap, a code is still generated and stored so the caller sees
-  identical behavior, but no further SMS goes out — the real protection
-  against someone hammering a specific person's number, on top of the
-  account-level SNS spend limit (set manually, not IaC-managed — see
-  README.md).
+  `verify-auth-challenge-response`). The current code, its 10-minute
+  expiry, and a per-phone send count all live in one DynamoDB table
+  (`PoplaOtpChallenges`, PK `phone`, TTL'd) — deliberately **not**
+  Cognito's own per-round `privateChallengeParameters`, and this is
+  load-bearing, not a style choice: `privateChallengeParameters` is a
+  snapshot cached separately for each individual challenge round, so a
+  Lambda that trusted it would let an *abandoned* round stay completable
+  with its original code for the full 10 minutes even after a newer SMS
+  was sent (e.g. the participant left an old browser tab open, then hit
+  "Resend"). `verify-auth-challenge-response` instead reads the row for
+  `event.userName` fresh, every time, so **sending a new code
+  immediately invalidates any code sent before it** — from any device or
+  tab, not just within the same session. A wrong guess (which
+  re-invokes `create-auth-challenge` with a non-empty `session`) is the
+  one path that deliberately does *not* touch the table — it must not
+  generate a new code or send a new SMS, only let the existing one keep
+  being checked. Sends are capped at **3 per phone per rolling 24
+  hours** (`MAX_SENDS_PER_WINDOW` in `create-auth-challenge`); past the
+  cap the currently-live code (if any) is left untouched rather than
+  cleared, and no further SMS goes out, but the response looks identical
+  to the caller either way — the real protection against someone
+  hammering a specific person's number, on top of the account-level SNS
+  spend limit (set manually, not IaC-managed — see README.md).
   `create-auth-challenge` sends the SMS directly via SNS `Publish`
   (as `Transactional`, not the default `Promotional`, since carriers can
   deprioritize the latter). The User Pool Client has

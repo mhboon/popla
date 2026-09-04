@@ -192,8 +192,10 @@ export class PoplaBackendStack extends Stack {
         entry: path.join(__dirname, '../lambda/verify-auth-challenge-response/index.ts'),
         runtime: lambda.Runtime.NODEJS_22_X,
         timeout: Duration.seconds(5),
+        environment: { OTP_CHALLENGES_TABLE: otpChallengesTable.tableName },
       }
     );
+    otpChallengesTable.grantReadData(verifyAuthChallengeResponseFn);
 
     // addTrigger auto-grants Cognito permission to invoke each function —
     // no manual resource policy needed.
