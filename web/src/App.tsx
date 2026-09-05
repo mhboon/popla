@@ -11,6 +11,7 @@ import { SeasonsPage } from './pages/SeasonsPage';
 import { SeasonRankingPage } from './pages/SeasonRankingPage';
 import { MatchdaysPage } from './pages/MatchdaysPage';
 import { MatchdaySetupPage } from './pages/MatchdaySetupPage';
+import { RegistrationSetupPage } from './pages/RegistrationSetupPage';
 import { MatchdayPage } from './pages/MatchdayPage';
 
 // "/" itself: the login page when signed out, a real home page when
@@ -86,6 +87,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <MatchdaySetupPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/matchdays/register"
+            element={
+              <ProtectedRoute>
+                <RegistrationSetupPage />
               </ProtectedRoute>
             }
           />

@@ -1,7 +1,8 @@
 export type MatchdayFormat = 'MEXICANO' | 'AMERICANO';
 export type SeasonStatus = 'ACTIVE' | 'CLOSED';
-export type MatchdayStatus = 'SETUP' | 'IN_PROGRESS' | 'CLOSED';
+export type MatchdayStatus = 'REGISTRATION' | 'SETUP' | 'IN_PROGRESS' | 'CLOSED';
 export type MatchStatus = 'PENDING' | 'COMPLETE';
+export type ParticipationStatus = 'JOINING' | 'WAITLISTED' | 'DECLINED';
 
 export interface Player {
   playerId: string;
@@ -9,6 +10,12 @@ export interface Player {
   phone?: string | null;
   isGuest: boolean;
   createdAt: string;
+}
+
+export interface MatchdayParticipant {
+  matchdayId: string;
+  playerId: string;
+  status: ParticipationStatus;
 }
 
 export interface Season {
@@ -26,6 +33,8 @@ export interface Matchday {
   startTime?: string | null;
   format: MatchdayFormat;
   status: MatchdayStatus;
+  maxParticipants?: number | null;
+  joinedCount?: number | null;
 }
 
 export interface Match {
