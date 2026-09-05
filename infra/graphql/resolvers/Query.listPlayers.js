@@ -3,5 +3,5 @@ export function request(ctx) {
 }
 
 export function response(ctx) {
-  return ctx.result.items;
+  return ctx.result.items.map((item) => ({ ...item, isGuest: !item.phone }));
 }

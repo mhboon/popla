@@ -35,6 +35,45 @@ longer-running "season" ranking.
   below), and no requirement to win by 2 games. First to 6 games wins the
   set, e.g. a set can validly end 6-5.
 
+### Registration
+
+A matchday can be built either of two ways:
+
+- **Direct**: an admin picks the final, already-a-multiple-of-4
+  participant list up front (the original flow).
+- **Open registration**: an admin opens a matchday for registration with
+  a capacity (`maxParticipants`, e.g. 16 for 4 courts) instead of a fixed
+  list. While registration is open:
+  - Any logged-in participant can join or leave for themselves.
+  - An admin can also add or remove any participant directly — this is
+    the only way a **guest** (see below) gets onto the roster, since a
+    guest has no login to self-serve with.
+  - Joining once capacity is reached waitlists the participant instead of
+    failing. Leaving a confirmed spot automatically promotes the
+    longest-waiting waitlisted participant into it.
+  - The admin closes registration once the confirmed ("joining")
+    count is a non-zero multiple of 4, locking in that roster (anyone
+    still waitlisted, or who declined, is dropped) and moving the
+    matchday into the same setup/round-generation flow as the direct
+    path. From this point on, direct and open-registration matchdays are
+    indistinguishable.
+
+### Guest participants
+
+A participant doesn't need a phone number / login to be added to a
+matchday, a ranking, or a season — an admin can register a **guest**:
+a `Player` with no phone and therefore no Cognito account. Guests:
+
+- Appear identically to any other participant in matchday rosters,
+  matchday rankings, and season standings — nothing about scoring or
+  ranking treats a guest differently.
+- Can't self-serve registration (no login) — an admin adds/removes them
+  from a matchday's roster directly (see Registration above).
+- Can be promoted to a full, logged-in participant at any time by an
+  admin giving them a phone number — the same action that turns any
+  participant's login on (see Phase 2 below); no separate "promote"
+  action exists.
+
 ### Match Generation
 
 Two supported formats, selectable per matchday:
@@ -158,9 +197,10 @@ separate admin login.
   self-signup); an admin can change it later, except for a participant
   who is themselves an admin (see Roles & Access below).
   See `ARCHITECTURE.md`'s Auth section for the Cognito implementation.
-- Logged-in, non-admin participants can, for now, **only**:
-  - View seasons and matchdays (results, rankings). Zero edit/action
-    capability — no admin controls are shown, let alone enabled.
+- Logged-in, non-admin participants can, beyond viewing seasons and
+  matchdays (results, rankings): join or leave a matchday that's open for
+  registration (see Registration above), for themselves only — no other
+  edit/action capability, no admin controls are shown, let alone enabled.
 - Admin status itself is manageable by existing admins, through the UI:
   promote a registered participant to admin, or demote one (an admin
   can't demote themselves, to avoid stranding the promote/demote UI if

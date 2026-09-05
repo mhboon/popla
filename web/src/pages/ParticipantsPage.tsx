@@ -255,7 +255,12 @@ export function ParticipantsPage() {
                           }
                         }}
                       >
-                        {player.displayName}
+                        {player.displayName}{' '}
+                        {player.isGuest && (
+                          <span className="status-badge" title="No phone on file — add one to enable login">
+                            Guest
+                          </span>
+                        )}
                       </td>
                       <td>{player.phone ?? '—'}</td>
                       <td>{player.email ?? '—'}</td>

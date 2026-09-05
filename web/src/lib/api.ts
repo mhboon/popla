@@ -3,22 +3,25 @@ import type {
   Match,
   Matchday,
   MatchdayFormat,
+  MatchdayParticipant,
   MatchdayResult,
   Player,
   Season,
   SeasonStanding,
 } from '../types/graphql';
 
-const PLAYER_FIELDS = 'playerId displayName phone email createdAt';
+const PLAYER_FIELDS = 'playerId displayName phone email isGuest createdAt';
 // phone/email are field-gated to Admins (see ARCHITECTURE.md's Auth
 // section) — AppSync doesn't just null those fields out for a
 // non-admin caller, it also adds an Unauthorized error to the
 // response, which graphqlRequest treats as a failure. Participant-
 // facing pages that only need playerId -> displayName resolution must
-// not select those two fields, or the whole call throws.
-const PLAYER_NAME_FIELDS = 'playerId displayName createdAt';
+// not select those two fields, or the whole call throws. isGuest is
+// safe to include here — it's computed, not gated (see schema.graphql).
+const PLAYER_NAME_FIELDS = 'playerId displayName isGuest createdAt';
 const SEASON_FIELDS = 'seasonId name status startDate closedAt';
-const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status';
+const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status maxParticipants joinedCount';
+const MATCHDAY_PARTICIPANT_FIELDS = 'matchdayId playerId status';
 const MATCH_FIELDS = 'matchdayId round court team1PlayerIds team2PlayerIds team1Games team2Games status';
 const MATCHDAY_RESULT_FIELDS =
   'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints winnerPoint';
@@ -39,6 +42,17 @@ export function listPlayerNames(idToken: string) {
     idToken,
     `query { listPlayers { ${PLAYER_NAME_FIELDS} } }`
   ).then((d) => d.listPlayers);
+}
+
+// Resolves to the Player linked to the caller's own login, or null for a
+// bare console admin with no linked Player — see schema.graphql. Safe for
+// any authenticated caller (only selects the same non-gated fields as
+// listPlayerNames).
+export function getMyPlayer(idToken: string) {
+  return graphqlRequest<{ getMyPlayer: Player | null }>(
+    idToken,
+    `query { getMyPlayer { ${PLAYER_NAME_FIELDS} } }`
+  ).then((d) => d.getMyPlayer);
 }
 
 export function createPlayer(
@@ -185,6 +199,54 @@ export function listMatchdayParticipantIds(idToken: string, matchdayId: string) 
     `query($matchdayId: ID!) { listMatchdayParticipantIds(matchdayId: $matchdayId) }`,
     { matchdayId }
   ).then((d) => d.listMatchdayParticipantIds);
+}
+
+export function listMatchdayParticipants(idToken: string, matchdayId: string) {
+  return graphqlRequest<{ listMatchdayParticipants: MatchdayParticipant[] }>(
+    idToken,
+    `query($matchdayId: ID!) { listMatchdayParticipants(matchdayId: $matchdayId) { ${MATCHDAY_PARTICIPANT_FIELDS} } }`,
+    { matchdayId }
+  ).then((d) => d.listMatchdayParticipants);
+}
+
+export function openRegistration(
+  idToken: string,
+  input: {
+    seasonId: string;
+    date: string;
+    startTime?: string;
+    format: MatchdayFormat;
+    maxParticipants: number;
+  }
+) {
+  return graphqlRequest<{ openRegistration: Matchday }>(
+    idToken,
+    `mutation($seasonId: ID!, $date: AWSDate!, $startTime: AWSTime, $format: MatchdayFormat!, $maxParticipants: Int!) {
+      openRegistration(seasonId: $seasonId, date: $date, startTime: $startTime, format: $format, maxParticipants: $maxParticipants) { ${MATCHDAY_FIELDS} }
+    }`,
+    input
+  ).then((d) => d.openRegistration);
+}
+
+export function setMatchdayJoining(
+  idToken: string,
+  input: { matchdayId: string; playerId?: string; joining: boolean }
+) {
+  return graphqlRequest<{ setMatchdayJoining: MatchdayParticipant }>(
+    idToken,
+    `mutation($matchdayId: ID!, $playerId: ID, $joining: Boolean!) {
+      setMatchdayJoining(matchdayId: $matchdayId, playerId: $playerId, joining: $joining) { ${MATCHDAY_PARTICIPANT_FIELDS} }
+    }`,
+    input
+  ).then((d) => d.setMatchdayJoining);
+}
+
+export function closeRegistration(idToken: string, matchdayId: string) {
+  return graphqlRequest<{ closeRegistration: Matchday }>(
+    idToken,
+    `mutation($matchdayId: ID!) { closeRegistration(matchdayId: $matchdayId) { ${MATCHDAY_FIELDS} } }`,
+    { matchdayId }
+  ).then((d) => d.closeRegistration);
 }
 
 export function getMatchday(idToken: string, matchdayId: string) {

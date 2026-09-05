@@ -3,19 +3,26 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import {
   closeMatchday,
+  closeRegistration,
+  createPlayer,
   generateRound,
   getMatchday,
   getMatchdayRanking,
+  getMyPlayer,
+  listMatchdayParticipants,
   listMatches,
   listPlayerNames,
+  listPlayers,
   recordSetResult,
+  setMatchdayJoining,
 } from '../lib/api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
 import { formatMatchdayWhen } from '../lib/matchday';
 import { formatMatchdayRankingShare, formatRoundShare } from '../lib/shareFormat';
-import type { Match, Matchday, MatchdayResult, Player } from '../types/graphql';
+import { sortByName } from '../lib/sort';
+import type { Match, Matchday, MatchdayParticipant, MatchdayResult, Player } from '../types/graphql';
 
 // A set is played to 6 games with no tiebreak (SPEC.md) — 0-6 is the full
 // valid range for either team's game count.
@@ -95,20 +102,39 @@ export function MatchdayPage() {
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'ranking'>('matches');
 
+  // Registration-phase state (matchday.status === 'REGISTRATION') — see
+  // MatchdayRegistrationPanel below.
+  const [participants, setParticipants] = useState<MatchdayParticipant[]>([]);
+  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  const [pickablePlayers, setPickablePlayers] = useState<Player[]>([]);
+
   async function refresh() {
     if (!matchdayId) return;
     setError(null);
     try {
-      const [md, matchList, playerList] = await Promise.all([
-        getMatchday(idToken, matchdayId),
-        listMatches(idToken, matchdayId),
-        listPlayerNames(idToken),
-      ]);
+      const md = await getMatchday(idToken, matchdayId);
       setMatchday(md);
-      setMatches(matchList);
-      setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
-      if (md?.status === 'CLOSED') {
-        setRanking(await getMatchdayRanking(idToken, matchdayId));
+      if (md?.status === 'REGISTRATION') {
+        const [participantList, playerList, myPlayer, pickable] = await Promise.all([
+          listMatchdayParticipants(idToken, matchdayId),
+          listPlayerNames(idToken),
+          getMyPlayer(idToken),
+          isAdmin ? listPlayers(idToken) : Promise.resolve<Player[]>([]),
+        ]);
+        setParticipants(participantList);
+        setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
+        setMyPlayerId(myPlayer?.playerId ?? null);
+        setPickablePlayers(sortByName(pickable));
+      } else {
+        const [matchList, playerList] = await Promise.all([
+          listMatches(idToken, matchdayId),
+          listPlayerNames(idToken),
+        ]);
+        setMatches(matchList);
+        setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
+        if (md?.status === 'CLOSED') {
+          setRanking(await getMatchdayRanking(idToken, matchdayId));
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load matchday');
@@ -156,6 +182,23 @@ export function MatchdayPage() {
 
   if (loading) return <p>Loading…</p>;
   if (!matchday) return <p className="form-error">Matchday not found.</p>;
+
+  if (matchday.status === 'REGISTRATION') {
+    return (
+      <MatchdayRegistrationPanel
+        matchday={matchday}
+        participants={participants}
+        players={players}
+        myPlayerId={myPlayerId}
+        isAdmin={isAdmin}
+        pickablePlayers={pickablePlayers}
+        idToken={idToken}
+        matchdayId={matchdayId!}
+        error={error}
+        onSaved={refresh}
+      />
+    );
+  }
 
   const matchesByRound = new Map<number, Match[]>();
   for (const match of matches) {
@@ -487,5 +530,312 @@ function MatchCard({
       )}
       {error && <p className="form-error">{error}</p>}
     </div>
+  );
+}
+
+function MatchdayRegistrationPanel({
+  matchday,
+  participants,
+  players,
+  myPlayerId,
+  isAdmin,
+  pickablePlayers,
+  idToken,
+  matchdayId,
+  error,
+  onSaved,
+}: {
+  matchday: Matchday;
+  participants: MatchdayParticipant[];
+  players: Map<string, Player>;
+  myPlayerId: string | null;
+  isAdmin: boolean;
+  pickablePlayers: Player[];
+  idToken: string;
+  matchdayId: string;
+  error: string | null;
+  onSaved: () => Promise<void>;
+}) {
+  const [busyPlayerId, setBusyPlayerId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pickedPlayerId, setPickedPlayerId] = useState('');
+  const [addingPlayer, setAddingPlayer] = useState(false);
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [newPlayerPhone, setNewPlayerPhone] = useState('');
+  const [newPlayerEmail, setNewPlayerEmail] = useState('');
+  const [creatingPlayer, setCreatingPlayer] = useState(false);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const [closingRegistration, setClosingRegistration] = useState(false);
+
+  const joining = participants.filter((p) => p.status === 'JOINING');
+  const waitlisted = participants.filter((p) => p.status === 'WAITLISTED');
+  const mine = participants.find((p) => p.playerId === myPlayerId);
+  const canClose = joining.length > 0 && joining.length % 4 === 0;
+
+  const alreadyOnRoster = new Set([...joining, ...waitlisted].map((p) => p.playerId));
+  const addablePlayers = pickablePlayers.filter((p) => !alreadyOnRoster.has(p.playerId));
+
+  async function setJoining(playerId: string | undefined, isJoining: boolean) {
+    setActionError(null);
+    setBusyPlayerId(playerId ?? 'self');
+    try {
+      await setMatchdayJoining(idToken, { matchdayId, playerId, joining: isJoining });
+      await onSaved();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update RSVP');
+    } finally {
+      setBusyPlayerId(null);
+    }
+  }
+
+  async function handleAddExisting(event: FormEvent) {
+    event.preventDefault();
+    if (!pickedPlayerId) return;
+    await setJoining(pickedPlayerId, true);
+    setPickedPlayerId('');
+  }
+
+  async function handleAddNewPlayer(event: FormEvent) {
+    event.preventDefault();
+    setActionError(null);
+    setCreatingPlayer(true);
+    try {
+      const player = await createPlayer(idToken, {
+        displayName: newPlayerName,
+        phone: newPlayerPhone || undefined,
+        email: newPlayerEmail || undefined,
+      });
+      await setMatchdayJoining(idToken, { matchdayId, playerId: player.playerId, joining: true });
+      await onSaved();
+      setNewPlayerName('');
+      setNewPlayerPhone('');
+      setNewPlayerEmail('');
+      setAddingPlayer(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to add participant');
+    } finally {
+      setCreatingPlayer(false);
+    }
+  }
+
+  async function handleCloseRegistration() {
+    setActionError(null);
+    setClosingRegistration(true);
+    try {
+      await closeRegistration(idToken, matchdayId);
+      await onSaved();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to close registration');
+    } finally {
+      setClosingRegistration(false);
+    }
+  }
+
+  return (
+    <div>
+      <h1>Matchday — {formatMatchdayWhen(matchday)}</h1>
+      <p>
+        Tournament style: {matchday.format} ·{' '}
+        <span className="status-badge status-registration">Registration open</span>
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      {actionError && <p className="form-error">{actionError}</p>}
+
+      <p className="participant-count">
+        <span className="scoreboard-chip">{joining.length}</span>
+        {` of ${matchday.maxParticipants} joined`}
+        {waitlisted.length > 0 && ` · ${waitlisted.length} waitlisted`}
+      </p>
+
+      {myPlayerId && (
+        <div className="page-actions">
+          {!mine || mine.status === 'DECLINED' ? (
+            <button
+              type="button"
+              className="button-primary"
+              disabled={busyPlayerId === 'self'}
+              onClick={() => setJoining(undefined, true)}
+            >
+              {busyPlayerId === 'self' ? 'Joining…' : 'Join'}
+            </button>
+          ) : mine.status === 'WAITLISTED' ? (
+            <>
+              <p>You're on the waitlist.</p>
+              <button
+                type="button"
+                disabled={busyPlayerId === 'self'}
+                onClick={() => setJoining(undefined, false)}
+              >
+                Leave waitlist
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="button-danger"
+              disabled={busyPlayerId === 'self'}
+              onClick={() => setJoining(undefined, false)}
+            >
+              {busyPlayerId === 'self' ? 'Leaving…' : 'Leave'}
+            </button>
+          )}
+        </div>
+      )}
+
+      <RosterList
+        list={joining}
+        title="Joining"
+        players={players}
+        isAdmin={isAdmin}
+        busyPlayerId={busyPlayerId}
+        onRemove={(playerId) => setJoining(playerId, false)}
+      />
+      <RosterList
+        list={waitlisted}
+        title="Waitlisted"
+        players={players}
+        isAdmin={isAdmin}
+        busyPlayerId={busyPlayerId}
+        onRemove={(playerId) => setJoining(playerId, false)}
+      />
+
+      {isAdmin && (
+        <section>
+          <h2>Add participants</h2>
+          <form onSubmit={handleAddExisting} className="inline-form">
+            <label>
+              Existing participant
+              <select value={pickedPlayerId} onChange={(e) => setPickedPlayerId(e.target.value)}>
+                <option value="">Select…</option>
+                {addablePlayers.map((p) => (
+                  <option key={p.playerId} value={p.playerId}>
+                    {p.displayName}
+                    {p.isGuest ? ' (Guest)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" className="button-primary" disabled={!pickedPlayerId}>
+              Add
+            </button>
+          </form>
+
+          {addingPlayer ? (
+            <form onSubmit={handleAddNewPlayer} className="inline-form">
+              <label>
+                Name
+                <input
+                  type="text"
+                  value={newPlayerName}
+                  onChange={(e) => setNewPlayerName(e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Phone (optional — enables login)
+                <input
+                  type="text"
+                  value={newPlayerPhone}
+                  onChange={(e) => setNewPlayerPhone(e.target.value)}
+                />
+              </label>
+              <label>
+                Email (optional)
+                <input
+                  type="email"
+                  value={newPlayerEmail}
+                  onChange={(e) => setNewPlayerEmail(e.target.value)}
+                />
+              </label>
+              <button type="submit" className="button-primary" disabled={creatingPlayer}>
+                {creatingPlayer ? 'Adding…' : 'Add participant'}
+              </button>
+              <button type="button" onClick={() => setAddingPlayer(false)}>
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setAddingPlayer(true)}>
+              + New participant
+            </button>
+          )}
+
+          <div className="page-actions">
+            <button
+              type="button"
+              className="button-primary"
+              disabled={!canClose || closingRegistration}
+              title={canClose ? undefined : 'Confirmed joiners must be a non-zero multiple of 4'}
+              onClick={() => setConfirmingClose(true)}
+            >
+              Close registration
+            </button>
+          </div>
+
+          <ConfirmDialog
+            open={confirmingClose}
+            title="Close registration?"
+            message="This locks in the current joiners as the matchday roster and moves it to setup. Waitlisted and declined participants are dropped."
+            confirmLabel="Close registration"
+            busy={closingRegistration}
+            onCancel={() => setConfirmingClose(false)}
+            onConfirm={() => {
+              setConfirmingClose(false);
+              handleCloseRegistration();
+            }}
+          />
+        </section>
+      )}
+    </div>
+  );
+}
+
+function RosterList({
+  list,
+  title,
+  players,
+  isAdmin,
+  busyPlayerId,
+  onRemove,
+}: {
+  list: MatchdayParticipant[];
+  title: string;
+  players: Map<string, Player>;
+  isAdmin: boolean;
+  busyPlayerId: string | null;
+  onRemove: (playerId: string) => void;
+}) {
+  return (
+    <section>
+      <h2>
+        {title} <span className="scoreboard-chip">{list.length}</span>
+      </h2>
+      {list.length === 0 ? (
+        <p>Nobody yet.</p>
+      ) : (
+        <ul className="matchday-list">
+          {list.map((p) => {
+            const player = players.get(p.playerId);
+            return (
+              <li key={p.playerId}>
+                <span>
+                  {player?.displayName ?? p.playerId}
+                  {player?.isGuest && <span className="status-badge">Guest</span>}
+                </span>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    disabled={busyPlayerId === p.playerId}
+                    onClick={() => onRemove(p.playerId)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

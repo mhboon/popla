@@ -9,6 +9,7 @@ enum SeasonStatus {
 }
 
 enum MatchdayStatus {
+  REGISTRATION
   SETUP
   IN_PROGRESS
   CLOSED
@@ -17,6 +18,12 @@ enum MatchdayStatus {
 enum MatchStatus {
   PENDING
   COMPLETE
+}
+
+enum ParticipationStatus {
+  JOINING
+  WAITLISTED
+  DECLINED
 }
 
 type Player {
@@ -29,6 +36,11 @@ type Player {
   # without leaking other participants' contact info.
   phone: String @aws_auth(cognito_groups: ["Admins"])
   email: String @aws_auth(cognito_groups: ["Admins"])
+  # Computed (phone == null), not stored — unlike phone/email itself this
+  # reveals no PII, so it's readable by any authenticated caller. Lets a
+  # non-admin participant see a "Guest" badge in matchday rosters/rankings
+  # without needing the phone-gated fields.
+  isGuest: Boolean!
   createdAt: AWSDateTime!
 }
 
@@ -51,6 +63,17 @@ type Matchday {
   startTime: AWSTime
   format: MatchdayFormat!
   status: MatchdayStatus!
+  # Only set for matchdays created via openRegistration — null for the
+  # legacy direct-to-SETUP createMatchday path. Left in place (not
+  # cleared) after registration closes, as a historical "16 of 16" record.
+  maxParticipants: Int
+  joinedCount: Int
+}
+
+type MatchdayParticipant {
+  matchdayId: ID!
+  playerId: ID!
+  status: ParticipationStatus!
 }
 
 type Match {
@@ -96,11 +119,22 @@ type SeasonStanding {
 # everyone for playerId -> displayName resolution.
 type Query {
   listPlayers: [Player!]!
+  # The Player linked to the caller's own login (matched by Cognito
+  # Username == phone number — see ARCHITECTURE.md's Auth section), or
+  # null for a bare console admin with no linked Player. Lets the
+  # frontend find "my own" row in a matchday roster without needing the
+  # phone-gated listPlayers fields.
+  getMyPlayer: Player
   listSeasons: [Season!]!
   getSeason(seasonId: ID!): Season
   listMatchdaysBySeason(seasonId: ID!): [Matchday!]!
   getMatchday(matchdayId: ID!): Matchday
   listMatchdayParticipantIds(matchdayId: ID!): [ID!]!
+  # Full RSVP roster (including WAITLISTED/DECLINED) for a matchday still
+  # in REGISTRATION. A row with no stored `status` (every row written by
+  # createMatchday/updateMatchday, i.e. every SETUP+ matchday) reads as
+  # JOINING.
+  listMatchdayParticipants(matchdayId: ID!): [MatchdayParticipant!]!
   listMatches(matchdayId: ID!): [Match!]!
   getMatchdayRanking(matchdayId: ID!): [MatchdayResult!]!
   getSeasonStanding(seasonId: ID!): [SeasonStanding!]!
@@ -140,6 +174,31 @@ type Mutation {
     format: MatchdayFormat!
     participantIds: [ID!]!
   ): Matchday! @aws_auth(cognito_groups: ["Admins"])
+
+  # Opens a matchday for self-service RSVP instead of createMatchday's
+  # up-front fixed list — see setMatchdayJoining/closeRegistration below.
+  openRegistration(
+    seasonId: ID!
+    date: AWSDate!
+    startTime: AWSTime
+    format: MatchdayFormat!
+    maxParticipants: Int!
+  ): Matchday! @aws_auth(cognito_groups: ["Admins"])
+
+  # Sets the caller's own RSVP (omit playerId) or — admin only — another
+  # player's (e.g. a guest, who has no login to self-serve with). Only
+  # valid while the matchday is REGISTRATION. Joining past maxParticipants
+  # waitlists instead of failing; leaving a confirmed spot auto-promotes
+  # the longest-waiting waitlisted player. Not @aws_auth-restricted at the
+  # field level — the Lambda itself enforces that a non-admin caller can
+  # only ever target their own player.
+  setMatchdayJoining(matchdayId: ID!, playerId: ID, joining: Boolean!): MatchdayParticipant!
+
+  # Locks in the roster (every still-JOINING player; WAITLISTED/DECLINED
+  # rows are dropped) and moves the matchday from REGISTRATION to SETUP,
+  # same precondition as createMatchday: a non-zero multiple of 4.
+  closeRegistration(matchdayId: ID!): Matchday!
+    @aws_auth(cognito_groups: ["Admins"])
 
   # Only allowed while the matchday is still SETUP (before generateRound
   # has created round 1) — editing date/format/participants after play has

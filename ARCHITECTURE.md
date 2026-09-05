@@ -74,6 +74,13 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   login; see Auth below), `createdAt`.
 - Persists across seasons — this is the durable identity a matchday
   participant and season standings entry both point back to.
+- A player with no `phone` is a **guest** (see SPEC.md) — `Player.isGuest`
+  on the GraphQL type is computed as `!phone` in the `listPlayers`/
+  `getMyPlayer` resolvers, not stored.
+- GSI `byPhone`: PK `phone` — sparse (guests are absent from it, having no
+  `phone`). Used by `getMyPlayer` and the `setMatchdayJoining` Lambda to
+  resolve "which Player is the caller" from `ctx.identity.username`
+  (Cognito Username == phone number — see Auth below).
 
 ### `Seasons`
 - PK: `seasonId`
@@ -85,14 +92,28 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - Attributes: `seasonId`, `date`, `startTime` (optional time-of-day —
   kept as a separate attribute rather than folding into `date` so
   existing rows don't need migrating), `format` (`MEXICANO` |
-  `AMERICANO`), `status` (`SETUP` | `IN_PROGRESS` | `CLOSED`).
+  `AMERICANO`), `status` (`REGISTRATION` | `SETUP` | `IN_PROGRESS` |
+  `CLOSED`), `maxParticipants`/`joinedCount` (both only set for a
+  matchday created via `openRegistration` — see SPEC.md's Registration;
+  null for the legacy direct-to-`SETUP` `createMatchday` path. Left in
+  place, not cleared, once registration closes — a historical "16 of 16"
+  record).
 - GSI `bySeasonId`: PK `seasonId`, SK `date` — list matchdays in a season,
   chronologically.
 
 ### `MatchdayParticipants`
 - PK: `matchdayId`, SK: `playerId`
 - The registered participant list for a matchday. Count must be a
-  multiple of 4.
+  multiple of 4 by the time the matchday is `SETUP`+.
+- Attributes `status` (`JOINING` | `WAITLISTED` | `DECLINED`) and
+  `updatedAt`, both only meaningful — and only ever written — while the
+  matchday is `REGISTRATION` (by the `setMatchdayJoining` Lambda). A row
+  with no `status` (every row written by `createMatchday`/
+  `updateMatchday`, i.e. every `SETUP`+ matchday) reads as `JOINING`
+  everywhere it's read (`generateRound`, `listMatchdayParticipantIds`,
+  `listMatchdayParticipants`'s response mapper) — this is why those
+  existing resolvers needed no changes for this feature. `updatedAt`
+  orders waitlist promotion FIFO.
 
 ### `Matches`
 - PK: `matchdayId`, SK: `ROUND#<n>#COURT#<c>`
@@ -130,9 +151,14 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 ## Resolver Split
 
 **Native (AppSync JS resolvers, direct to DynamoDB):**
-- `listPlayers`
+- `listPlayers`, `getMyPlayer` — the latter is a `Players.byPhone` GSI
+  query keyed on `ctx.identity.username`, returning the caller's own
+  `Player` (or null); both compute `isGuest` (`!phone`) in the response
+  mapper.
 - `getSeason`, `listSeasons`
-- `getMatchday`, `listMatchdaysBySeason`, `listMatchdayParticipantIds`
+- `getMatchday`, `listMatchdaysBySeason`, `listMatchdayParticipantIds`,
+  `listMatchdayParticipants` (the latter includes RSVP `status`, missing
+  → `JOINING`)
 - `listMatches(matchdayId, round?)`
 - `getMatchdayRanking(matchdayId)` — Query on `MatchdayResults.byMatchdayRank`
 - `getSeasonStanding(seasonId)` — Query on `SeasonStandings.bySeasonPoints`
@@ -142,6 +168,10 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   data-layer constraint — see Open Questions.
 - `createMatchday` — includes participant list; JS resolver validates
   participant count is a non-zero multiple of 4 and the season is `ACTIVE`
+- `openRegistration` — the open-registration alternative to
+  `createMatchday` (see SPEC.md): writes just the `Matchdays` item
+  (`status: REGISTRATION`, `maxParticipants`, `joinedCount: 0`), no
+  `MatchdayParticipants` rows yet — simple enough to stay native.
 - `recordSetResult(matchId, team1Games, team2Games)` — JS resolver
   validates the score (`max(team1Games, team2Games) == 6`,
   `min(...) < 6`, i.e. no tiebreak, no win-by-2 requirement) directly in
@@ -179,6 +209,27 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - `promoteToAdmin`/`demoteFromAdmin(playerId)` — `AdminAddUserToGroup`/
   `AdminRemoveUserFromGroup` against the player's Cognito user;
   `demoteFromAdmin` rejects removing the caller's own admin status.
+- `setMatchdayJoining(matchdayId, playerId?, joining)` — not
+  `@aws_auth`-restricted (any authenticated user can call it for their
+  own RSVP), so the Lambda itself enforces that a non-admin caller
+  (`ctx.identity.groups`, same check `@aws_auth` uses internally) can
+  only ever target their own player, resolved via `Players.byPhone` on
+  `ctx.identity.username` — real enough identity logic, plus the
+  capacity/waitlist handling below, to need Lambda. Idempotent no-op if
+  already in the requested state (`JOINING`/`WAITLISTED` when joining,
+  absent/`DECLINED` when leaving). Joining: one transaction conditionally
+  `ADD`s `Matchdays.joinedCount` (`< maxParticipants`) alongside writing
+  the `JOINING` row; a failed condition (full) instead writes
+  `WAITLISTED`. Leaving a `JOINING` row: queries the matchday's other
+  participants for the `WAITLISTED` one with the oldest `updatedAt` and,
+  in one transaction, flips it to `JOINING` while the leaver becomes
+  `DECLINED` (counter untouched, net zero); with nobody waitlisted, the
+  leaver becomes `DECLINED` and `joinedCount` decrements instead.
+- `closeRegistration(matchdayId)` — requires a non-zero-multiple-of-4
+  count of `JOINING` rows (same shape of check as `createMatchday`'s),
+  then one transaction flips `Matchdays.status` to `SETUP` and deletes
+  every non-`JOINING` `MatchdayParticipants` row — mirrors
+  `updateMatchday`'s add/remove transaction shape.
 - `listAdminPhoneNumbers` — one `ListUsersInGroup` call against the
   `Admins` group, used by the admin UI to know which players are
   currently admins without an AdminListGroupsForUser call per row.
@@ -253,13 +304,17 @@ incrementally.
   ordinary phone-based Cognito user**, not a separate account type
   (this was already true conceptually; login unification just extends
   it to the login mechanism itself). Admin mutations (`generateRound`,
-  `recordSetResult`, `closeMatchday`, `createMatchday`, `createSeason`,
-  `closeSeason`, `createPlayer`, `updatePlayer`, `promoteToAdmin`,
-  `demoteFromAdmin`) are restricted with
+  `recordSetResult`, `closeMatchday`, `createMatchday`, `openRegistration`,
+  `closeRegistration`, `createSeason`, `closeSeason`, `createPlayer`,
+  `updatePlayer`, `promoteToAdmin`, `demoteFromAdmin`) are restricted with
   `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema —
-  enforced by AppSync itself. Everything else under `Query` is open to
-  any authenticated user by default; the two PII fields on `Player`
-  (`phone`, `email`) are field-gated to `Admins` instead. A non-admin
+  enforced by AppSync itself. `setMatchdayJoining` is the one mutation
+  that's deliberately *not* schema-restricted (any authenticated user
+  needs it, for their own RSVP) — see the Resolver Split section for how
+  it self-enforces the admin-only `playerId` argument instead. Everything
+  else under `Query` is open to any authenticated user by default; the
+  two PII fields on `Player` (`phone`, `email`) are field-gated to
+  `Admins` instead. A non-admin
   caller does resolve those two fields to `null` since both are
   nullable — but AppSync *also* appends an `Unauthorized` entry to the
   response's top-level `errors` array for each denied field, and
