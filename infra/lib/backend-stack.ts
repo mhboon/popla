@@ -27,6 +27,14 @@ export class PoplaBackendStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
+    // Sparse index (guest players have no `phone`, so they're simply
+    // absent from it) — resolves "which Player is the caller" from their
+    // Cognito Username (== phone number, see ARCHITECTURE.md's Auth
+    // section) in getMyPlayer and set-matchday-joining.
+    playersTable.addGlobalSecondaryIndex({
+      indexName: 'byPhone',
+      partitionKey: { name: 'phone', type: dynamodb.AttributeType.STRING },
+    });
 
     const seasonsTable = new dynamodb.Table(this, 'SeasonsTable', {
       tableName: 'PoplaSeasons',
@@ -255,6 +263,9 @@ export class PoplaBackendStack extends Stack {
       file: string;
     }> = [
       { dataSource: playersDS, typeName: 'Query', fieldName: 'listPlayers', file: 'Query.listPlayers.js' },
+      { dataSource: playersDS, typeName: 'Query', fieldName: 'getMyPlayer', file: 'Query.getMyPlayer.js' },
+      { dataSource: matchdayParticipantsDS, typeName: 'Query', fieldName: 'listMatchdayParticipants', file: 'Query.listMatchdayParticipants.js' },
+      { dataSource: matchdaysDS, typeName: 'Mutation', fieldName: 'openRegistration', file: 'Mutation.openRegistration.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'listSeasons', file: 'Query.listSeasons.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'getSeason', file: 'Query.getSeason.js' },
       { dataSource: seasonsDS, typeName: 'Mutation', fieldName: 'createSeason', file: 'Mutation.createSeason.js' },
@@ -358,6 +369,51 @@ export class PoplaBackendStack extends Stack {
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(
         path.join(RESOLVERS_DIR, 'Mutation.updateMatchday.js')
+      ),
+    });
+
+    const setMatchdayJoiningFn = new NodejsFunction(this, 'SetMatchdayJoiningFn', {
+      entry: path.join(__dirname, '../lambda/set-matchday-joining/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: { ...lambdaEnv, PLAYERS_TABLE: playersTable.tableName },
+    });
+    matchdaysTable.grantReadWriteData(setMatchdayJoiningFn);
+    matchdayParticipantsTable.grantReadWriteData(setMatchdayJoiningFn);
+    playersTable.grantReadData(setMatchdayJoiningFn);
+
+    const setMatchdayJoiningDS = api.addLambdaDataSource(
+      'SetMatchdayJoiningDataSource',
+      setMatchdayJoiningFn
+    );
+    setMatchdayJoiningDS.createResolver('MutationSetMatchdayJoiningResolver', {
+      typeName: 'Mutation',
+      fieldName: 'setMatchdayJoining',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.setMatchdayJoining.js')
+      ),
+    });
+
+    const closeRegistrationFn = new NodejsFunction(this, 'CloseRegistrationFn', {
+      entry: path.join(__dirname, '../lambda/close-registration/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: lambdaEnv,
+    });
+    matchdaysTable.grantReadWriteData(closeRegistrationFn);
+    matchdayParticipantsTable.grantReadWriteData(closeRegistrationFn);
+
+    const closeRegistrationDS = api.addLambdaDataSource(
+      'CloseRegistrationDataSource',
+      closeRegistrationFn
+    );
+    closeRegistrationDS.createResolver('MutationCloseRegistrationResolver', {
+      typeName: 'Mutation',
+      fieldName: 'closeRegistration',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.closeRegistration.js')
       ),
     });
 
