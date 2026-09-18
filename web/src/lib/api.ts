@@ -87,6 +87,14 @@ export function promoteToAdmin(idToken: string, playerId: string) {
   ).then((d) => d.promoteToAdmin);
 }
 
+export function setMyPassword(idToken: string, newPassword: string) {
+  return graphqlRequest<{ setMyPassword: boolean }>(
+    idToken,
+    `mutation($newPassword: String!) { setMyPassword(newPassword: $newPassword) }`,
+    { newPassword }
+  ).then((d) => d.setMyPassword);
+}
+
 export function demoteFromAdmin(idToken: string, playerId: string) {
   return graphqlRequest<{ demoteFromAdmin: boolean }>(
     idToken,

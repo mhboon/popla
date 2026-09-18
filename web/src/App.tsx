@@ -4,6 +4,7 @@ import { useAuth } from './lib/useAuth';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
+import { AccountPage } from './pages/AccountPage';
 import { ParticipantsPage } from './pages/ParticipantsPage';
 import { SeasonsPage } from './pages/SeasonsPage';
 import { SeasonRankingPage } from './pages/SeasonRankingPage';
@@ -24,6 +25,14 @@ export function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<HomeRedirect />} />
+          <Route
+            path="/account"
+            element={
+              <ProtectedRoute requireAdmin={false}>
+                <AccountPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/participants"
             element={

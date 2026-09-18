@@ -17,6 +17,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {user.isAdmin && <Link to="/participants">Participants</Link>}
             <Link to="/seasons">Seasons</Link>
             <Link to="/matchdays">Matchdays</Link>
+            <Link to="/account">Account</Link>
             <button
               type="button"
               onClick={() => {

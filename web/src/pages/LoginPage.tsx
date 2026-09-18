@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { requestOtp, toAuthenticatedUser, type SubmitCodeResult } from '../lib/auth';
+import {
+  login,
+  requestOtp,
+  toAuthenticatedUser,
+  type AuthenticatedUser,
+  type SubmitCodeResult,
+} from '../lib/auth';
+import { setMyPassword } from '../lib/api';
 import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
+import { PASSWORD_HINT } from '../lib/password';
 import { useAuth } from '../lib/useAuth';
 
 // Client-side courtesy only, not a real defense (someone could call
@@ -10,6 +18,8 @@ import { useAuth } from '../lib/useAuth';
 // infra/lambda/create-auth-challenge/index.ts. This just stops an
 // impatient double-tap from firing off extra codes.
 const RESEND_COOLDOWN_S = 30;
+
+type Mode = 'password' | 'otp-request' | 'otp-verify' | 'set-password';
 
 function describeAuthError(err: unknown, fallback: string): string {
   const code = (err as { code?: string } | undefined)?.code;
@@ -27,10 +37,19 @@ export function LoginPage() {
   const { setUser } = useAuth();
   const navigate = useNavigate();
 
+  const [mode, setMode] = useState<Mode>('password');
+
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [submitCode, setSubmitCode] =
     useState<((code: string) => Promise<SubmitCodeResult>) | null>(null);
+  // The just-authenticated (via OTP) user, held here rather than read back
+  // from context — setUser's state update isn't guaranteed to have landed
+  // by the time the set-password screen needs a token to call the API.
+  const [authedUser, setAuthedUser] = useState<AuthenticatedUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -56,12 +75,34 @@ export function LoginPage() {
     }, 1000);
   }
 
+  function goToOtpRequest() {
+    setError(null);
+    setPassword('');
+    setMode('otp-request');
+  }
+
+  async function handlePasswordLogin(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const session = await login(phone, password);
+      setUser(toAuthenticatedUser(session));
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Incorrect phone number or password.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function sendCode() {
     setError(null);
     setSubmitting(true);
     try {
       const result = await requestOtp(phone);
       setSubmitCode(() => result.submitCode);
+      setMode('otp-verify');
       startResendCooldown();
     } catch (err) {
       setError(describeAuthError(err, 'Could not send code'));
@@ -94,8 +135,10 @@ export function LoginPage() {
         setError('That code was incorrect — try again.');
         return;
       }
-      setUser(toAuthenticatedUser(result.session));
-      navigate('/');
+      const user = toAuthenticatedUser(result.session);
+      setUser(user);
+      setAuthedUser(user);
+      setMode('set-password');
     } catch (err) {
       setError(describeAuthError(err, 'Could not verify code'));
       if ((err as { code?: string } | undefined)?.code === 'NotAuthorizedException') {
@@ -104,13 +147,72 @@ export function LoginPage() {
         // a fresh code rather than leaving a dead form on screen.
         setSubmitCode(null);
         setCode('');
+        setMode('otp-request');
       }
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (submitCode) {
+  async function handleSetPassword(event: FormEvent) {
+    event.preventDefault();
+    if (!authedUser) return;
+    if (newPassword !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      await setMyPassword(authedUser.idToken, newPassword);
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not set password');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (mode === 'set-password') {
+    return (
+      <form onSubmit={handleSetPassword} className="auth-form">
+        <h1>Set a password</h1>
+        <p>Skip this to keep signing in by SMS code, or set a password for faster sign-in next time.</p>
+        <label>
+          New password
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+          />
+        </label>
+        <label>
+          Confirm password
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+          />
+        </label>
+        <p>{PASSWORD_HINT}</p>
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" className="button-primary" disabled={submitting}>
+          {submitting ? 'Setting password…' : 'Set password'}
+        </button>
+        <button type="button" onClick={() => navigate('/')}>
+          Skip for now
+        </button>
+      </form>
+    );
+  }
+
+  if (mode === 'otp-verify') {
     return (
       <form onSubmit={handleVerifyCode} className="auth-form">
         <h1>Enter your code</h1>
@@ -141,6 +243,7 @@ export function LoginPage() {
             setSubmitCode(null);
             setCode('');
             setError(null);
+            setMode('otp-request');
           }}
         >
           Use a different number
@@ -149,8 +252,37 @@ export function LoginPage() {
     );
   }
 
+  if (mode === 'otp-request') {
+    return (
+      <form onSubmit={handleRequestCode} className="auth-form">
+        <h1>Sign in with a code</h1>
+        <label>
+          Phone number
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="31612345678"
+            pattern={PHONE_PATTERN}
+            title={PHONE_HINT}
+            autoComplete="tel"
+            required
+          />
+        </label>
+        <p>{PHONE_HINT}</p>
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" className="button-primary" disabled={submitting}>
+          {submitting ? 'Sending code…' : 'Send code'}
+        </button>
+        <button type="button" onClick={() => setMode('password')}>
+          Back to password sign-in
+        </button>
+      </form>
+    );
+  }
+
   return (
-    <form onSubmit={handleRequestCode} className="auth-form">
+    <form onSubmit={handlePasswordLogin} className="auth-form">
       <h1>Sign in</h1>
       <label>
         Phone number
@@ -161,14 +293,26 @@ export function LoginPage() {
           placeholder="31612345678"
           pattern={PHONE_PATTERN}
           title={PHONE_HINT}
-          autoComplete="tel"
+          autoComplete="username"
           required
         />
       </label>
-      <p>{PHONE_HINT}</p>
+      <label>
+        Password
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+        />
+      </label>
       {error && <p className="form-error">{error}</p>}
       <button type="submit" className="button-primary" disabled={submitting}>
-        {submitting ? 'Sending code…' : 'Send code'}
+        {submitting ? 'Signing in…' : 'Sign in'}
+      </button>
+      <button type="button" onClick={goToOtpRequest}>
+        Sign in with a code instead
       </button>
     </form>
   );

@@ -180,6 +180,13 @@ type Mutation {
   # the AWS console, to do that.
   demoteFromAdmin(playerId: ID!): Boolean!
     @aws_auth(cognito_groups: ["Admins"])
+
+  # Sets (or resets) the caller's own sign-in password — self-enforced via
+  # the AppSync identity, not restricted to Admins, since it always
+  # targets the caller's own Cognito user. Reachable in practice only
+  # after an OTP sign-in, which is what actually proves phone ownership;
+  # see ARCHITECTURE.md's Auth section.
+  setMyPassword(newPassword: String!): Boolean!
 }
 
 schema {

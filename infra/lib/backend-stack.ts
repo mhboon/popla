@@ -157,7 +157,14 @@ export class PoplaBackendStack extends Stack {
     // the challenge Lambdas below handle the resulting
     // `userNotFound: true` branch explicitly.
     const userPoolClient = userPool.addClient('WebClient', {
-      authFlows: { custom: true },
+      // `userSrp: true` enables the username+password login added
+      // alongside OTP — see the setMyPassword Lambda below and
+      // ARCHITECTURE.md's Auth section. OTP (`custom: true`) remains the
+      // only way to ever prove phone ownership; password is purely a
+      // faster-return-visit shortcut layered on top, set/reset through
+      // setMyPassword once an OTP sign-in has already authenticated the
+      // caller.
+      authFlows: { custom: true, userSrp: true },
       preventUserExistenceErrors: true,
       // Matches CDK's own default; set explicitly for documentation —
       // long enough that a participant isn't re-verifying by SMS on
@@ -478,6 +485,27 @@ export class PoplaBackendStack extends Stack {
       fieldName: 'demoteFromAdmin',
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.demoteFromAdmin.js')),
+    });
+
+    const setMyPasswordFn = new NodejsFunction(this, 'SetMyPasswordFn', {
+      entry: path.join(__dirname, '../lambda/set-my-password/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: { USER_POOL_ID: userPool.userPoolId },
+    });
+    setMyPasswordFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cognito-idp:AdminSetUserPassword'],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const setMyPasswordDS = api.addLambdaDataSource('SetMyPasswordDataSource', setMyPasswordFn);
+    setMyPasswordDS.createResolver('MutationSetMyPasswordResolver', {
+      typeName: 'Mutation',
+      fieldName: 'setMyPassword',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.setMyPassword.js')),
     });
 
     const listAdminsFn = new NodejsFunction(this, 'ListAdminsFn', {
