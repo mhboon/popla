@@ -28,6 +28,12 @@ type Player {
   # any authenticated user for playerId -> displayName resolution
   # without leaking other participants' contact info.
   phone: String @aws_auth(cognito_groups: ["Admins"])
+  # Derived from phone (no phone = no Cognito login, i.e. a guest
+  # participant an admin registered without enabling their own login),
+  # not its own stored attribute. Unrestricted — unlike phone, this
+  # carries no PII, so it's safe for the "(Guest)" label on
+  # participant-facing pages that only select PLAYER_NAME_FIELDS.
+  isGuest: Boolean!
   createdAt: AWSDateTime!
 }
 

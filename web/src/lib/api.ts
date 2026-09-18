@@ -9,14 +9,14 @@ import type {
   SeasonStanding,
 } from '../types/graphql';
 
-const PLAYER_FIELDS = 'playerId displayName phone createdAt';
+const PLAYER_FIELDS = 'playerId displayName phone isGuest createdAt';
 // phone is field-gated to Admins (see ARCHITECTURE.md's Auth
 // section) — AppSync doesn't just null that field out for a
 // non-admin caller, it also adds an Unauthorized error to the
 // response, which graphqlRequest treats as a failure. Participant-
 // facing pages that only need playerId -> displayName resolution must
 // not select that field, or the whole call throws.
-const PLAYER_NAME_FIELDS = 'playerId displayName createdAt';
+const PLAYER_NAME_FIELDS = 'playerId displayName isGuest createdAt';
 const SEASON_FIELDS = 'seasonId name status startDate closedAt';
 const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status';
 const MATCH_FIELDS = 'matchdayId round court team1PlayerIds team2PlayerIds team1Games team2Games status';
