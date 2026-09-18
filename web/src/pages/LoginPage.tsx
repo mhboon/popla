@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   login,
   requestOtp,
@@ -36,6 +36,10 @@ function describeAuthError(err: unknown, fallback: string): string {
 export function LoginPage() {
   const { setUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set by ParticipantsPage after a self phone-number change, which logs
+  // the current session out — see its handleSaveEdit.
+  const redirectMessage = (location.state as { message?: string } | null)?.message;
 
   const [mode, setMode] = useState<Mode>('password');
 
@@ -281,6 +285,7 @@ export function LoginPage() {
   return (
     <form onSubmit={handlePasswordLogin} className="auth-form">
       <h1>Sign in</h1>
+      {redirectMessage && <p>{redirectMessage}</p>}
       <label>
         Phone number
         <input
