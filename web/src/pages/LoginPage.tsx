@@ -312,7 +312,7 @@ export function LoginPage() {
         {submitting ? 'Signing in…' : 'Sign in'}
       </button>
       <button type="button" onClick={goToOtpRequest}>
-        Sign in with a code instead
+        Forgot your password? Sign in with a code
       </button>
     </form>
   );
