@@ -215,7 +215,7 @@ export function SeasonRankingPage() {
                       <td>
                         <span className="scoreboard-chip">{standing.rank}</span>
                       </td>
-                      <td>{playerName(standing.playerId)}</td>
+                      <td className="name">{playerName(standing.playerId)}</td>
                       <td className="num">{standing.totalPoints}</td>
                       <td className="num">{standing.matchdaysPlayed}</td>
                     </tr>
@@ -256,7 +256,7 @@ export function SeasonRankingPage() {
                       <td>
                         <span className="scoreboard-chip">{standing.rank}</span>
                       </td>
-                      <td>{playerName(standing.playerId)}</td>
+                      <td className="name">{playerName(standing.playerId)}</td>
                       <td className="num">{standing.winnerPoints}</td>
                     </tr>
                   ))}

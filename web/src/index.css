@@ -404,6 +404,16 @@ button:disabled {
   font-weight: 600;
 }
 
+/* A long name (or a "(Guest)" suffix) under the blanket nowrap above
+   would otherwise stretch the whole table wider than the screen, pushing
+   every other column off it — this lets the name column wrap onto a
+   second line within a capped width instead, so numeric/status columns
+   after it stay reachable without horizontal scroll. */
+.data-table td.name {
+  white-space: normal;
+  max-width: 11rem;
+}
+
 /*
  * Whole-row-clickable pattern: a real <Link>/<a> (.row-link) inside one
  * cell, stretched via an absolutely-positioned ::after to fill the

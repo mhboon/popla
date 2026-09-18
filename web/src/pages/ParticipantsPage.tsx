@@ -254,8 +254,8 @@ export function ParticipantsPage() {
                     </tr>
                   ) : (
                     <tr key={player.playerId}>
-                      <td>{player.displayName}</td>
-                      <td>{player.phone ?? '—'}</td>
+                      <td className="name">{player.displayName}</td>
+                      <td>{player.phone ?? (player.isGuest ? 'Guest' : '—')}</td>
                       <td>
                         <button type="button" onClick={() => startEdit(player, isRowAdmin)}>
                           Edit
