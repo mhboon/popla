@@ -40,10 +40,9 @@ sync automatically.
 - **Frontend:** React + Vite + TypeScript (`web/`). A plain `fetch`-based
   GraphQL client rather than Apollo/Amplify — the API surface is small
   enough that a full client library isn't worth the dependency weight.
-  Cognito auth via `amazon-cognito-identity-js` (SRP, matching the User
-  Pool client's `authFlows: { userSrp: true }`), including the
-  `newPasswordRequired` challenge admins hit on first sign-in after
-  `admin-create-user`.
+  Cognito auth via `amazon-cognito-identity-js`: `USER_SRP_AUTH` for
+  password sign-in, `CUSTOM_AUTH` for the SMS-OTP sign-in used to
+  establish or reset a password (see the Auth section below).
 - **Frontend hosting:** S3 (private, Origin Access Control) + CloudFront.
 - **API:** AWS AppSync (GraphQL), Cognito User Pool authorizer.
 - **Business logic:** AppSync JS (native) resolvers to DynamoDB for CRUD/
@@ -68,8 +67,7 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 ### `Players`
 - PK: `playerId`
 - Attributes: `displayName`, `phone` (optional, international, digits
-  only, no leading `+` — see Auth below), `email`
-  (optional), `cognitoSub` (nullable — set when an admin registers/
+  only, no leading `+` — see Auth below), `cognitoSub` (nullable — set when an admin registers/
   changes the player's `phone`, via `AdminCreateUser`, not on first
   login; see Auth below), `createdAt`.
 - Persists across seasons — this is the durable identity a matchday
@@ -194,11 +192,16 @@ incrementally.
 
 ## Auth
 
-- One Cognito User Pool. Login is **fully passwordless, for everyone,
-  admin or participant**: phone number → 6-digit SMS code (10 min
-  validity) → verified. There is no password anywhere in the app — this
-  also doubles as the "forgot password" flow, since there's nothing to
-  forget.
+- One Cognito User Pool, one login mechanism for everyone, admin or
+  participant, layered in two parts: an SMS-OTP sign-in (phone number →
+  6-digit code, 10 min validity) that's the only thing that actually
+  proves phone ownership, and an optional password set via that OTP
+  session (`setMyPassword`) for faster return visits. A brand-new Cognito
+  user has no password and must sign in by OTP at least once; "forgot
+  password" isn't a separate mechanism, it's the same OTP sign-in run
+  again, followed by `setMyPassword` — so it inherits the OTP path's
+  existing rate limiting and invalidation guarantees (below) instead of
+  needing its own.
 - **Cognito `Username` = the user's international phone number, digits
   only, no leading `+`** (e.g. `31612345678`, not `+31612345678` — see
   `infra/lambda/shared/phone.ts`'s `PHONE_REGEX`), for every user in the
@@ -212,7 +215,7 @@ incrementally.
   as `Players.cognitoSub`. SNS's `Publish` API requires true E.164 (with
   the `+`) to actually deliver an SMS, so `create-auth-challenge`
   prepends it right before that one call — nowhere else needs to.
-- **Passwordless flow is implemented as Cognito `CUSTOM_AUTH`**, handled
+- **The OTP flow is implemented as Cognito `CUSTOM_AUTH`**, handled
   entirely by three small Lambda triggers on the User Pool
   (`define-auth-challenge`, `create-auth-challenge`,
   `verify-auth-challenge-response`). The current code, its 10-minute
@@ -249,6 +252,34 @@ incrementally.
   just from how quickly the request fails. Login itself never touches
   AppSync — the frontend talks to Cognito directly via
   `amazon-cognito-identity-js`, same as any other Cognito auth flow.
+- **Password sign-in is `USER_SRP_AUTH`**, the User Pool Client's other
+  enabled auth flow alongside `custom`. Passwords are set/reset by
+  `setMyPassword` (`infra/lambda/set-my-password`) — a Lambda resolver
+  restricted to no group, callable by any authenticated user, that always
+  targets the *caller's own* Cognito `Username` (read off
+  `event.identity.username`, never an argument) via
+  `AdminSetUserPassword(..., Permanent: true)`. Reachability, not the
+  mutation itself, is what makes this safe: it's only callable with a
+  valid session, and the only way to get one without already having a
+  password is the OTP flow above — `setMyPassword` does no independent
+  verification of its own. Changing a *known* password (Account page) is
+  a separate, simpler path: Cognito's own `ChangePassword` API
+  (`web/src/lib/auth.ts`'s `changePassword`), called straight from the
+  frontend against the signed-in user's session — no Lambda, no
+  AppSync — since Cognito already verifies the old password itself.
+  `AdminSetUserPassword` with `Permanent: true`
+  also always clears `FORCE_CHANGE_PASSWORD`, so `newPasswordRequired`
+  (the challenge Cognito raises for an unconfirmed/temporary password) is
+  never actually reachable through the app: every Cognito user either has
+  no password yet (OTP-only) or a real one set this way. The one path
+  that bypasses this — a break-glass admin created directly via
+  `admin-create-user` (see README.md) — is left in
+  `FORCE_CHANGE_PASSWORD` with a Cognito-generated temporary password
+  nobody knows, which is indistinguishable from "wrong password" to a
+  client attempting `USER_SRP_AUTH`; that admin also just needs one OTP
+  sign-in + `setMyPassword` to get a real password. Cognito's default
+  password policy applies (min. 8 characters, upper/lowercase, a number,
+  a symbol) — not customized.
 - `Admins` group — **admin is purely group membership on an otherwise
   ordinary phone-based Cognito user**, not a separate account type
   (this was already true conceptually; login unification just extends
@@ -257,14 +288,17 @@ incrementally.
   `closeSeason`, `createPlayer`, `updatePlayer`, `promoteToAdmin`,
   `demoteFromAdmin`) are restricted with
   `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema —
-  enforced by AppSync itself. Everything else under `Query` is open to
-  any authenticated user by default; the two PII fields on `Player`
-  (`phone`, `email`) are field-gated to `Admins` instead. A non-admin
-  caller does resolve those two fields to `null` since both are
+  enforced by AppSync itself. `setMyPassword` is the deliberate exception
+  under `Mutation` — open to any authenticated user, self-enforced by
+  identity rather than schema, per the Password sign-in bullet above.
+  Everything else under `Query` is open to
+  any authenticated user by default; the one PII field on `Player`
+  (`phone`) is field-gated to `Admins` instead. A non-admin
+  caller does resolve that field to `null` since it's
   nullable — but AppSync *also* appends an `Unauthorized` entry to the
   response's top-level `errors` array for each denied field, and
   `web/src/lib/graphqlClient.ts` throws on any `errors` present. So a
-  non-admin `listPlayers` call that selects `phone`/`email` fails
+  non-admin `listPlayers` call that selects `phone` fails
   outright, not "succeeds with nulls" — the two participant-facing
   pages that need playerId → displayName resolution
   (`SeasonRankingPage`, `MatchdayPage`) call `listPlayerNames` instead

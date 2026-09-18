@@ -7,7 +7,6 @@ export interface Player {
   playerId: string;
   displayName: string;
   phone?: string | null;
-  email?: string | null;
   createdAt: string;
 }
 

@@ -44,6 +44,30 @@ export function requestOtp(phone: string): Promise<OtpResult> {
   });
 }
 
+/**
+ * Username+password login (USER_SRP_AUTH) — the default, faster-return-
+ * visit path once a password has been set via setMyPassword. OTP
+ * (requestOtp above) remains the only way to actually prove phone
+ * ownership; every Cognito user in this pool that has a real password at
+ * all got it via setMyPassword's AdminSetUserPassword(..., Permanent:
+ * true), which never leaves FORCE_CHANGE_PASSWORD behind — so
+ * newPasswordRequired is not a reachable state here, only defended
+ * against so a mismatched account state fails loudly instead of hanging.
+ * See ARCHITECTURE.md's Auth section.
+ */
+export function login(username: string, password: string): Promise<CognitoUserSession> {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = new CognitoUser({ Username: username, Pool: userPool });
+    const authDetails = new AuthenticationDetails({ Username: username, Password: password });
+    cognitoUser.authenticateUser(authDetails, {
+      onSuccess: resolve,
+      onFailure: reject,
+      newPasswordRequired: () =>
+        reject(new Error('This account needs a password set — sign in with a code first.')),
+    });
+  });
+}
+
 function answerChallenge(cognitoUser: CognitoUser, code: string): Promise<SubmitCodeResult> {
   return new Promise((resolve, reject) => {
     cognitoUser.sendCustomChallengeAnswer(code, {
@@ -54,6 +78,36 @@ function answerChallenge(cognitoUser: CognitoUser, code: string): Promise<Submit
           type: 'incorrect',
           submitCode: (nextCode) => answerChallenge(cognitoUser, nextCode),
         }),
+    });
+  });
+}
+
+/**
+ * Change the signed-in user's own password, given their current one.
+ * Cognito's ChangePassword API verifies oldPassword itself (rejects with
+ * NotAuthorizedException if it's wrong) — no backend call needed, unlike
+ * setMyPassword above, which exists precisely because there's no old
+ * password to check in the OTP-triggered set/reset case.
+ */
+export function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = userPool.getCurrentUser();
+    if (!cognitoUser) {
+      reject(new Error('Not signed in.'));
+      return;
+    }
+    // changePassword relies on the user's session internally; getSession
+    // makes sure one's loaded (and transparently refreshed if stale)
+    // before calling it, same as getCurrentSession elsewhere in this file.
+    cognitoUser.getSession((err: Error | null) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      cognitoUser.changePassword(oldPassword, newPassword, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
     });
   });
 }

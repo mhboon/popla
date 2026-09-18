@@ -150,13 +150,15 @@ separate admin login.
 
 ### Phase 2
 
-- Individual login for **everyone** — participants and admins alike —
-  fully passwordless: phone number → SMS code (10 min validity) →
-  logged in. No password ever exists, so there's no separate
-  forgot-password flow to build — requesting a fresh code covers it. A
-  participant's phone number is admin-registered only (no public
-  self-signup); an admin can change it later, except for a participant
-  who is themselves an admin (see Roles & Access below).
+- Individual login for **everyone** — participants and admins alike.
+  Phone number → SMS code (10 min validity) is how everyone signs in the
+  first time and is also the only way to (re)set a password; once set, a
+  password signs in faster on return visits without waiting on an SMS.
+  There's no separate forgot-password flow to build beyond the SMS-code
+  sign-in itself — requesting a fresh code and setting a new password
+  covers it. A participant's phone number is admin-registered only (no
+  public self-signup); an admin can change it later, except for a
+  participant who is themselves an admin (see Roles & Access below).
   See `ARCHITECTURE.md`'s Auth section for the Cognito implementation.
 - Logged-in, non-admin participants can, for now, **only**:
   - View seasons and matchdays (results, rankings). Zero edit/action

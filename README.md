@@ -106,14 +106,14 @@ From here on, every push to `main` runs `.github/workflows/deploy.yml`.
 
 ## Admin users
 
-Login is passwordless SMS OTP for everyone, admin and participant alike
-(see `ARCHITECTURE.md`'s Auth section) — a Cognito user's `Username` is
-their international phone number, digits only, no leading `+` (e.g.
-`31612345678`, not `+31612345678`), and admin is just `Admins`-group
-membership on top of an otherwise ordinary user. Existing admins can
-promote/demote other registered participants through the app's UI, but
-the *first* admin — and any "break-glass" admin not tied to a
-participant record at all — has to be created manually:
+Login is SMS OTP + an optional password, for everyone, admin and
+participant alike (see `ARCHITECTURE.md`'s Auth section) — a Cognito
+user's `Username` is their international phone number, digits only, no
+leading `+` (e.g. `31612345678`, not `+31612345678`), and admin is just
+`Admins`-group membership on top of an otherwise ordinary user. Existing
+admins can promote/demote other registered participants through the
+app's UI, but the *first* admin — and any "break-glass" admin not tied
+to a participant record at all — has to be created manually:
 
 ```bash
 aws cognito-idp admin-create-user --user-pool-id <UserPoolId> \
@@ -130,7 +130,8 @@ login), register it as a participant through the app first — that
 provisions the same Cognito user for you — then just run the
 `admin-add-user-to-group` command above.
 
-Note: the User Pool used to require a password (`admin-create-user`
-without `--message-action SUPPRESS` would set a temporary one, forcing a
-first-sign-in password change). That's gone — there's no password
-anywhere in the app now, only the SMS-code challenge.
+Note: `admin-create-user` here still uses `--message-action SUPPRESS` and
+sets no password — a manually-created user has none until they sign in
+once by SMS code and set one (in-app, via "Set a password"); until then
+they can only sign in by code, same as any freshly-registered
+participant.

@@ -19,11 +19,10 @@ const USER_POOL_ID = process.env.USER_POOL_ID!;
 interface CreatePlayerArgs {
   displayName: string;
   phone?: string | null;
-  email?: string | null;
 }
 
 export const handler = async (event: { arguments: CreatePlayerArgs }) => {
-  const { displayName, phone, email } = event.arguments;
+  const { displayName, phone } = event.arguments;
 
   if (!displayName.trim()) {
     throw new Error('displayName must not be empty');
@@ -71,7 +70,6 @@ export const handler = async (event: { arguments: CreatePlayerArgs }) => {
     playerId: randomUUID(),
     displayName,
     phone: phone ?? undefined,
-    email: email ?? undefined,
     cognitoSub,
     createdAt: new Date().toISOString(),
   };
