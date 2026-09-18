@@ -108,6 +108,11 @@ export function MatchdayPage() {
       setMatches(matchList);
       setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
       if (md?.status === 'CLOSED') {
+        // Closed matchdays open straight to the ranking — that's the
+        // meaningful result once play's done, and some (imported
+        // historical ones) have no per-match data to show at all, see
+        // hasMatches below.
+        setActiveTab('ranking');
         setRanking(await getMatchdayRanking(idToken, matchdayId));
       }
     } catch (err) {
@@ -175,6 +180,11 @@ export function MatchdayPage() {
   // an already-closed matchday.
   const currentRoundComplete =
     isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
+  // A closed matchday with no per-match data (e.g. imported historical
+  // ones — see infra/scripts/import-history.ts) has nothing for this tab
+  // to show; an open one always does, even at zero matches, since that's
+  // where "Generate round 1" lives.
+  const showMatchesTab = isOpen || matches.length > 0;
   const dayStandingsSoFar = assignCompetitionRank(
     standingsSoFar(matches),
     (a, b) => a.gamesWon === b.gamesWon && a.gameDiff === b.gameDiff && a.setsWon === b.setsWon
@@ -198,13 +208,15 @@ export function MatchdayPage() {
       {error && <p className="form-error">{error}</p>}
 
       <div className="tabs">
-        <button
-          type="button"
-          className={`tab-button${activeTab === 'matches' ? ' tab-button-active' : ''}`}
-          onClick={() => setActiveTab('matches')}
-        >
-          Matches
-        </button>
+        {showMatchesTab && (
+          <button
+            type="button"
+            className={`tab-button${activeTab === 'matches' ? ' tab-button-active' : ''}`}
+            onClick={() => setActiveTab('matches')}
+          >
+            Matches
+          </button>
+        )}
         <button
           type="button"
           className={`tab-button${activeTab === 'ranking' ? ' tab-button-active' : ''}`}
