@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import {
   createPlayer,
@@ -23,9 +22,8 @@ function sanitizePhoneInput(value: string): string {
 }
 
 export function ParticipantsPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const idToken = user!.idToken;
-  const navigate = useNavigate();
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [adminPhones, setAdminPhones] = useState<Set<string>>(new Set());
@@ -107,26 +105,13 @@ export function ParticipantsPage() {
     setError(null);
     setSaving(true);
     try {
-      // Renumbering *your own* phone deletes the Cognito user your
-      // current session is authenticated as (see
-      // infra/lambda/update-player) and creates a new one for the new
-      // number — the save itself succeeds, but the browser is left
-      // holding a token for a user that no longer exists. It keeps
-      // working until the cached token needs refreshing, then fails with
-      // no explanation. Detect it up front and force a clean
-      // re-authentication instead.
-      const target = players.find((p) => p.playerId === editingId);
-      const isSelf = !!target?.phone && target.phone === user!.username;
-      const newPhone = editForm.phone || null;
-      const phoneChanged = newPhone !== (target?.phone ?? null);
-
       await updatePlayer(idToken, {
         playerId: editingId,
         displayName: editForm.displayName,
         // Explicit null (not undefined) so blanking the field actually
         // clears it server-side — omitting the argument entirely means
         // "leave unchanged" (see infra/lambda/update-player).
-        phone: newPhone,
+        phone: editForm.phone || null,
       });
       if (editForm.isAdmin !== editingWasAdmin) {
         if (editForm.isAdmin) {
@@ -135,19 +120,6 @@ export function ParticipantsPage() {
           await demoteFromAdmin(idToken, editingId);
         }
       }
-
-      if (isSelf && phoneChanged) {
-        logout();
-        navigate('/login', {
-          state: {
-            message: newPhone
-              ? 'Your phone number changed — sign in again with your new number.'
-              : 'Your phone number was removed — an admin will need to register a new one for you to sign in again.',
-          },
-        });
-        return;
-      }
-
       setEditingId(null);
       await refresh();
     } catch (err) {
@@ -247,8 +219,14 @@ export function ParticipantsPage() {
                             }}
                             placeholder="Phone (blank for a guest)"
                             pattern={PHONE_PATTERN}
-                            title={PHONE_HINT}
+                            disabled={editingWasAdmin}
+                            title={
+                              editingWasAdmin
+                                ? "Admins can't be renumbered here — remove admin status first, or use the AWS console."
+                                : PHONE_HINT
+                            }
                           />
+                          {editingWasAdmin && <p>{PHONE_HINT}</p>}
                           <label>
                             <input
                               type="checkbox"

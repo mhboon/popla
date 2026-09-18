@@ -316,14 +316,14 @@ incrementally.
   set up via AWS console (`admin-create-user` + `admin-add-user-to-
   group`) — none of the Cognito trigger Lambdas or resolvers require a
   `Player` row to exist, so a bare Cognito user works identically.
-  Changing an admin's phone number (Cognito `Username` is immutable, so
-  this always means delete + recreate the Cognito user) used to be
-  blocked outright, since a freshly created Cognito user starts with no
-  group membership and the delete/recreate doesn't carry it over.
-  `updatePlayer` now handles this instead of blocking it: it reads the
-  old user's `Admins` membership before deleting it, and — if present —
-  adds the newly created user to `Admins` too, before the old one is
-  deleted (so there's never a moment with neither user in the group).
+  A player who's currently an admin can't have their phone number changed
+  via the UI (enforced in `updatePlayer`, not just hidden client-side):
+  Cognito `Username` is immutable, so a phone change means delete +
+  recreate the Cognito user, which would silently drop group membership
+  that doesn't survive the recreation. This is deliberate, not just an
+  unsolved edge case — an admin's own phone number staying stable is the
+  point (demote first, or use the AWS console, to actually renumber
+  one).
 - "Switch role" (admin ⇄ participant) is a **frontend-only** concept —
   since admin permissions are a strict superset of participant
   permissions, there's nothing to change on the backend; the client just
