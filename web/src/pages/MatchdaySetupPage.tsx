@@ -36,7 +36,6 @@ export function MatchdaySetupPage() {
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerPhone, setNewPlayerPhone] = useState('');
-  const [newPlayerEmail, setNewPlayerEmail] = useState('');
   const [creatingPlayer, setCreatingPlayer] = useState(false);
 
   useEffect(() => {
@@ -87,13 +86,11 @@ export function MatchdaySetupPage() {
       const player = await createPlayer(idToken, {
         displayName: newPlayerName,
         phone: newPlayerPhone || undefined,
-        email: newPlayerEmail || undefined,
       });
       setPlayers((prev) => sortByName([...prev, player]));
       setSelected((prev) => new Set(prev).add(player.playerId));
       setNewPlayerName('');
       setNewPlayerPhone('');
-      setNewPlayerEmail('');
       setAddingPlayer(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add participant');
@@ -197,14 +194,6 @@ export function MatchdaySetupPage() {
                   type="text"
                   value={newPlayerPhone}
                   onChange={(e) => setNewPlayerPhone(e.target.value)}
-                />
-              </label>
-              <label>
-                Email (optional)
-                <input
-                  type="email"
-                  value={newPlayerEmail}
-                  onChange={(e) => setNewPlayerEmail(e.target.value)}
                 />
               </label>
               <button type="submit" className="button-primary" disabled={creatingPlayer}>

@@ -67,8 +67,7 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 ### `Players`
 - PK: `playerId`
 - Attributes: `displayName`, `phone` (optional, international, digits
-  only, no leading `+` — see Auth below), `email`
-  (optional), `cognitoSub` (nullable — set when an admin registers/
+  only, no leading `+` — see Auth below), `cognitoSub` (nullable — set when an admin registers/
   changes the player's `phone`, via `AdminCreateUser`, not on first
   login; see Auth below), `createdAt`.
 - Persists across seasons — this is the durable identity a matchday
@@ -293,13 +292,13 @@ incrementally.
   under `Mutation` — open to any authenticated user, self-enforced by
   identity rather than schema, per the Password sign-in bullet above.
   Everything else under `Query` is open to
-  any authenticated user by default; the two PII fields on `Player`
-  (`phone`, `email`) are field-gated to `Admins` instead. A non-admin
-  caller does resolve those two fields to `null` since both are
+  any authenticated user by default; the one PII field on `Player`
+  (`phone`) is field-gated to `Admins` instead. A non-admin
+  caller does resolve that field to `null` since it's
   nullable — but AppSync *also* appends an `Unauthorized` entry to the
   response's top-level `errors` array for each denied field, and
   `web/src/lib/graphqlClient.ts` throws on any `errors` present. So a
-  non-admin `listPlayers` call that selects `phone`/`email` fails
+  non-admin `listPlayers` call that selects `phone` fails
   outright, not "succeeds with nulls" — the two participant-facing
   pages that need playerId → displayName resolution
   (`SeasonRankingPage`, `MatchdayPage`) call `listPlayerNames` instead

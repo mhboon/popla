@@ -12,7 +12,7 @@ import { sortByName } from '../lib/sort';
 import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
 import type { Player } from '../types/graphql';
 
-const emptyForm = { displayName: '', phone: '', email: '' };
+const emptyForm = { displayName: '', phone: '' };
 
 export function ParticipantsPage() {
   const { user } = useAuth();
@@ -61,7 +61,6 @@ export function ParticipantsPage() {
       await createPlayer(idToken, {
         displayName: registerForm.displayName,
         phone: registerForm.phone || undefined,
-        email: registerForm.email || undefined,
       });
       setRegisterForm(emptyForm);
       await refresh();
@@ -77,7 +76,6 @@ export function ParticipantsPage() {
     setEditForm({
       displayName: player.displayName,
       phone: player.phone ?? '',
-      email: player.email ?? '',
     });
   }
 
@@ -94,7 +92,6 @@ export function ParticipantsPage() {
         // clears it server-side — omitting the argument entirely means
         // "leave unchanged" (see infra/lambda/update-player).
         phone: editForm.phone || null,
-        email: editForm.email || null,
       });
       setEditingId(null);
       await refresh();
@@ -162,14 +159,6 @@ export function ParticipantsPage() {
               title={PHONE_HINT}
             />
           </label>
-          <label>
-            Email (optional)
-            <input
-              type="email"
-              value={registerForm.email}
-              onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-            />
-          </label>
           <button type="submit" className="button-primary" disabled={registering}>
             {registering ? 'Registering…' : 'Register'}
           </button>
@@ -188,7 +177,6 @@ export function ParticipantsPage() {
                 <tr>
                   <th>Name</th>
                   <th>Phone</th>
-                  <th>Email</th>
                   <th>Admin</th>
                 </tr>
               </thead>
@@ -204,7 +192,7 @@ export function ParticipantsPage() {
 
                   return editingId === player.playerId ? (
                     <tr key={player.playerId}>
-                      <td colSpan={4}>
+                      <td colSpan={3}>
                         <form onSubmit={handleSaveEdit} className="inline-form">
                           <input
                             type="text"
@@ -224,12 +212,6 @@ export function ParticipantsPage() {
                                 ? "Admins can't be renumbered here — use the AWS console, or remove admin status first."
                                 : PHONE_HINT
                             }
-                          />
-                          <input
-                            type="email"
-                            value={editForm.email}
-                            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                            placeholder="Email"
                           />
                           <button type="submit" className="button-primary" disabled={saving}>
                             {saving ? 'Saving…' : 'Save'}
@@ -258,7 +240,6 @@ export function ParticipantsPage() {
                         {player.displayName}
                       </td>
                       <td>{player.phone ?? '—'}</td>
-                      <td>{player.email ?? '—'}</td>
                       <td>
                         {isRowAdmin && <span className="status-badge">Admin</span>}{' '}
                         {isRowAdmin ? (

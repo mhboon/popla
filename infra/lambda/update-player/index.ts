@@ -17,13 +17,12 @@ const cognito = new CognitoIdentityProviderClient({});
 const PLAYERS_TABLE = process.env.PLAYERS_TABLE!;
 const USER_POOL_ID = process.env.USER_POOL_ID!;
 
-const EDITABLE_FIELDS = ['displayName', 'phone', 'email'] as const;
+const EDITABLE_FIELDS = ['displayName', 'phone'] as const;
 
 interface UpdatePlayerArgs {
   playerId: string;
   displayName?: string;
   phone?: string | null;
-  email?: string | null;
 }
 
 export const handler = async (event: { arguments: UpdatePlayerArgs }) => {

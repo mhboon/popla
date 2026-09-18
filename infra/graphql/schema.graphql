@@ -22,13 +22,12 @@ enum MatchStatus {
 type Player {
   playerId: ID!
   displayName: String!
-  # Admin-only: a non-admin caller (participant) resolves these to null
-  # rather than an error, since both are nullable — see SPEC.md/
+  # Admin-only: a non-admin caller (participant) resolves this to null
+  # rather than an error, since it's nullable — see SPEC.md/
   # ARCHITECTURE.md's Auth section. This lets listPlayers stay open to
   # any authenticated user for playerId -> displayName resolution
   # without leaking other participants' contact info.
   phone: String @aws_auth(cognito_groups: ["Admins"])
-  email: String @aws_auth(cognito_groups: ["Admins"])
   createdAt: AWSDateTime!
 }
 
@@ -91,7 +90,7 @@ type SeasonStanding {
 # Any authenticated Cognito user (admin or participant — see
 # ARCHITECTURE.md's Auth section) can call any Query field by default,
 # since login itself now implies "at least read access". The only
-# PII on this graph, Player.phone/email, is gated at the field level
+# PII on this graph, Player.phone, is gated at the field level
 # instead (see the Player type above), so listPlayers stays usable by
 # everyone for playerId -> displayName resolution.
 type Query {
@@ -114,14 +113,13 @@ type Query {
 }
 
 type Mutation {
-  createPlayer(displayName: String!, phone: String, email: String): Player!
+  createPlayer(displayName: String!, phone: String): Player!
     @aws_auth(cognito_groups: ["Admins"])
 
   updatePlayer(
     playerId: ID!
     displayName: String
     phone: String
-    email: String
   ): Player! @aws_auth(cognito_groups: ["Admins"])
 
   createSeason(name: String!, startDate: AWSDate!): Season!

@@ -9,13 +9,13 @@ import type {
   SeasonStanding,
 } from '../types/graphql';
 
-const PLAYER_FIELDS = 'playerId displayName phone email createdAt';
-// phone/email are field-gated to Admins (see ARCHITECTURE.md's Auth
-// section) — AppSync doesn't just null those fields out for a
+const PLAYER_FIELDS = 'playerId displayName phone createdAt';
+// phone is field-gated to Admins (see ARCHITECTURE.md's Auth
+// section) — AppSync doesn't just null that field out for a
 // non-admin caller, it also adds an Unauthorized error to the
 // response, which graphqlRequest treats as a failure. Participant-
 // facing pages that only need playerId -> displayName resolution must
-// not select those two fields, or the whole call throws.
+// not select that field, or the whole call throws.
 const PLAYER_NAME_FIELDS = 'playerId displayName createdAt';
 const SEASON_FIELDS = 'seasonId name status startDate closedAt';
 const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status';
@@ -24,7 +24,7 @@ const MATCHDAY_RESULT_FIELDS =
   'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints winnerPoint';
 const SEASON_STANDING_FIELDS = 'seasonId playerId totalPoints matchdaysPlayed winnerPoints';
 
-// Admin-only (ParticipantsPage, MatchdaySetupPage) — includes phone/email.
+// Admin-only (ParticipantsPage, MatchdaySetupPage) — includes phone.
 export function listPlayers(idToken: string) {
   return graphqlRequest<{ listPlayers: Player[] }>(
     idToken,
@@ -41,14 +41,11 @@ export function listPlayerNames(idToken: string) {
   ).then((d) => d.listPlayers);
 }
 
-export function createPlayer(
-  idToken: string,
-  input: { displayName: string; phone?: string; email?: string }
-) {
+export function createPlayer(idToken: string, input: { displayName: string; phone?: string }) {
   return graphqlRequest<{ createPlayer: Player }>(
     idToken,
-    `mutation($displayName: String!, $phone: String, $email: String) {
-      createPlayer(displayName: $displayName, phone: $phone, email: $email) { ${PLAYER_FIELDS} }
+    `mutation($displayName: String!, $phone: String) {
+      createPlayer(displayName: $displayName, phone: $phone) { ${PLAYER_FIELDS} }
     }`,
     input
   ).then((d) => d.createPlayer);
@@ -60,13 +57,12 @@ export function updatePlayer(
     playerId: string;
     displayName?: string;
     phone?: string | null;
-    email?: string | null;
   }
 ) {
   return graphqlRequest<{ updatePlayer: Player }>(
     idToken,
-    `mutation($playerId: ID!, $displayName: String, $phone: String, $email: String) {
-      updatePlayer(playerId: $playerId, displayName: $displayName, phone: $phone, email: $email) { ${PLAYER_FIELDS} }
+    `mutation($playerId: ID!, $displayName: String, $phone: String) {
+      updatePlayer(playerId: $playerId, displayName: $displayName, phone: $phone) { ${PLAYER_FIELDS} }
     }`,
     input
   ).then((d) => d.updatePlayer);
