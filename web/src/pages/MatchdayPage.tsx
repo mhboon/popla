@@ -336,7 +336,7 @@ export function MatchdayPage() {
                         <td>
                           <span className="scoreboard-chip">{result.rank}</span>
                         </td>
-                        <td>{playerName(result.playerId)}</td>
+                        <td className="name">{playerName(result.playerId)}</td>
                         <td className="num">{result.gamesWon}</td>
                         <td className="num">{result.gameDiff}</td>
                         <td className="num">{result.setsWon}</td>
@@ -379,7 +379,7 @@ export function MatchdayPage() {
                         <td>
                           <span className="scoreboard-chip">{standing.rank}</span>
                         </td>
-                        <td>{playerName(standing.playerId)}</td>
+                        <td className="name">{playerName(standing.playerId)}</td>
                         <td className="num">{standing.gamesWon}</td>
                         <td className="num">{standing.gameDiff}</td>
                         <td className="num">{standing.setsWon}</td>
