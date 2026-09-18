@@ -125,6 +125,28 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - GSI `bySeasonWinnerPoints`: PK `seasonId`, SK `winnerPoints` — same
   idea, for the "round winners" season ranking.
 
+### Backups
+
+Every table above has `pointInTimeRecoverySpecification` enabled — 35
+days of continuous point-in-time recovery, AWS's own restore mechanism.
+`PoplaOtpChallenges` (not listed above — it's the SMS-OTP challenge
+state from the Auth section below, not app data) deliberately doesn't:
+it's TTL'd ephemeral codes, nothing worth recovering.
+
+On top of that, `BackupTablesFn` (`infra/lambda/backup-tables`) scans
+every table above once daily (`BackupTablesSchedule`, 03:00 UTC cron)
+and writes one plain JSON array per table to `BackupBucket`
+(`s3://<bucket>/<YYYY-MM-DD>/<TableName>.json`), which expires objects
+after 28 days via an S3 lifecycle rule. This is deliberately a plain
+`Scan` + `JSON.stringify`, not DynamoDB's native `ExportTableToPointInTime`:
+these tables are tiny (low hundreds of items at most), so the RCU cost
+of a daily scan is negligible, and a flat, human-readable JSON file per
+table is far easier to inspect or restore from by hand than the native
+export's sharded/manifest format — matching this repo's existing
+`local/` reconciliation scripts' style, rather than requiring a
+different restore process for a totally separate reason to reach for
+one.
+
 ## Resolver Split
 
 **Native (AppSync JS resolvers, direct to DynamoDB):**
