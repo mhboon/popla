@@ -6,6 +6,9 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as appsync from 'aws-cdk-lib/aws-appsync';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 
 const RESOLVERS_DIR = path.join(__dirname, '../graphql/resolvers');
@@ -527,6 +530,49 @@ export class PoplaBackendStack extends Stack {
       fieldName: 'listAdminPhoneNumbers',
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Query.listAdminPhoneNumbers.js')),
+    });
+
+    // ---- Daily DynamoDB -> S3 backups ----
+    // On top of PITR (35-day continuous point-in-time recovery, enabled
+    // on every table above) — a durable, exportable daily snapshot,
+    // retained 4 weeks, independent of PITR's window and restore
+    // mechanism. PoplaOtpChallenges is deliberately excluded, same
+    // reasoning as its missing pointInTimeRecoverySpecification: it's
+    // TTL'd ephemeral codes, not data worth recovering.
+
+    const backupBucket = new s3.Bucket(this, 'BackupBucket', {
+      removalPolicy: RemovalPolicy.RETAIN,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      lifecycleRules: [{ expiration: Duration.days(28) }],
+    });
+
+    const backupTables = [
+      playersTable,
+      seasonsTable,
+      matchdaysTable,
+      matchdayParticipantsTable,
+      matchesTable,
+      matchdayResultsTable,
+      seasonStandingsTable,
+    ];
+
+    const backupFn = new NodejsFunction(this, 'BackupTablesFn', {
+      entry: path.join(__dirname, '../lambda/backup-tables/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.minutes(5),
+      environment: {
+        BUCKET_NAME: backupBucket.bucketName,
+        TABLE_NAMES: backupTables.map((t) => t.tableName).join(','),
+      },
+    });
+    backupBucket.grantWrite(backupFn);
+    for (const table of backupTables) {
+      table.grantReadData(backupFn);
+    }
+
+    new events.Rule(this, 'BackupTablesSchedule', {
+      schedule: events.Schedule.cron({ minute: '0', hour: '3' }), // 03:00 UTC daily
+      targets: [new targets.LambdaFunction(backupFn)],
     });
 
     // ---- Outputs ----
