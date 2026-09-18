@@ -52,7 +52,9 @@ export const handler = async (event: { arguments: UpdatePlayerArgs }) => {
     // old Cognito user (below) doesn't carry group membership over to a
     // recreated one — see ARCHITECTURE.md's Auth section. Block it here
     // (the real guard) regardless of whether the UI also disables the
-    // field.
+    // field. Deliberately not "solved" by carrying membership over to a
+    // new user instead: an admin's own phone number staying stable is
+    // the point, not an implementation detail to work around.
     if (existing.cognitoSub) {
       const { Groups } = await cognito.send(
         new AdminListGroupsForUserCommand({

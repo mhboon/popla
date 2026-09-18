@@ -177,7 +177,7 @@ export function LoginPage() {
     return (
       <form onSubmit={handleSetPassword} className="auth-form">
         <h1>Set a password</h1>
-        <p>Skip this to keep signing in by SMS code, or set a password for faster sign-in next time.</p>
+        <p>You need to set a password before continuing.</p>
         <label>
           New password
           <input
@@ -204,9 +204,6 @@ export function LoginPage() {
         {error && <p className="form-error">{error}</p>}
         <button type="submit" className="button-primary" disabled={submitting}>
           {submitting ? 'Setting password…' : 'Set password'}
-        </button>
-        <button type="button" onClick={() => navigate('/')}>
-          Skip for now
         </button>
       </form>
     );
@@ -312,7 +309,7 @@ export function LoginPage() {
         {submitting ? 'Signing in…' : 'Sign in'}
       </button>
       <button type="button" onClick={goToOtpRequest}>
-        Sign in with a code instead
+        Forgot your password?
       </button>
     </form>
   );

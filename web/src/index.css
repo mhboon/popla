@@ -430,13 +430,6 @@ button:disabled {
   inset: 0;
 }
 
-/* Same visual affordance for a row whose click performs an in-page
-   action (e.g. entering edit mode) rather than navigation, so it can't
-   use a real <a> — see ParticipantsPage. */
-.row-actionable {
-  cursor: pointer;
-}
-
 /* ---- Scoreboard chip: the signature element. Court-deep + mono
    ball-yellow digits, reused everywhere a number matters (selection
    counts, round numbers, ranks, scores) so they all read as the same
