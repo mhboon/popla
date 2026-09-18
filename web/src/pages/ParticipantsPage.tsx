@@ -224,23 +224,13 @@ export function ParticipantsPage() {
                       </td>
                     </tr>
                   ) : (
-                    <tr key={player.playerId} className="row-actionable">
-                      <td
-                        tabIndex={0}
-                        role="button"
-                        aria-label={`Edit ${player.displayName}`}
-                        onClick={() => startEdit(player)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            startEdit(player);
-                          }
-                        }}
-                      >
-                        {player.displayName}
-                      </td>
+                    <tr key={player.playerId}>
+                      <td>{player.displayName}</td>
                       <td>{player.phone ?? '—'}</td>
                       <td>
+                        <button type="button" onClick={() => startEdit(player)}>
+                          Edit
+                        </button>{' '}
                         {isRowAdmin && <span className="status-badge">Admin</span>}{' '}
                         {isRowAdmin ? (
                           <button
