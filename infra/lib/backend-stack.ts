@@ -429,6 +429,7 @@ export class PoplaBackendStack extends Stack {
           'cognito-idp:AdminSetUserPassword',
           'cognito-idp:AdminDeleteUser',
           'cognito-idp:AdminListGroupsForUser',
+          'cognito-idp:AdminAddUserToGroup',
         ],
         resources: [userPool.userPoolArn],
       })

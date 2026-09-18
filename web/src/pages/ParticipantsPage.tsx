@@ -12,7 +12,14 @@ import { sortByName } from '../lib/sort';
 import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
 import type { Player } from '../types/graphql';
 
-const emptyForm = { displayName: '', phone: '' };
+const emptyForm = { displayName: '', phone: '', isAdmin: false };
+
+// "Just the numbers" — strips anything a paste or autofill might add
+// (spaces, dashes, a leading +) as the user types, rather than only
+// validating on submit via PHONE_PATTERN.
+function sanitizePhoneInput(value: string): string {
+  return value.replace(/\D/g, '');
+}
 
 export function ParticipantsPage() {
   const { user } = useAuth();
@@ -28,9 +35,12 @@ export function ParticipantsPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(emptyForm);
+  // The admin status editForm.isAdmin started from — fixed at startEdit,
+  // never touched by the checkbox afterward, so handleSaveEdit can tell
+  // whether the checkbox actually changed rather than diffing a value
+  // against itself.
+  const [editingWasAdmin, setEditingWasAdmin] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -58,10 +68,18 @@ export function ParticipantsPage() {
     setError(null);
     setRegistering(true);
     try {
-      await createPlayer(idToken, {
+      const player = await createPlayer(idToken, {
         displayName: registerForm.displayName,
         phone: registerForm.phone || undefined,
       });
+      // Two calls, not a single atomic one — createPlayer has no isAdmin
+      // arg, and promoteToAdmin requires cognitoSub, which only exists
+      // once the player row above is written. If this second call fails,
+      // the participant is just left non-admin, visibly so — re-checking
+      // the box on Edit retries it.
+      if (registerForm.isAdmin && registerForm.phone) {
+        await promoteToAdmin(idToken, player.playerId);
+      }
       setRegisterForm(emptyForm);
       await refresh();
     } catch (err) {
@@ -71,12 +89,14 @@ export function ParticipantsPage() {
     }
   }
 
-  function startEdit(player: Player) {
+  function startEdit(player: Player, isAdmin: boolean) {
     setEditingId(player.playerId);
     setEditForm({
       displayName: player.displayName,
       phone: player.phone ?? '',
+      isAdmin,
     });
+    setEditingWasAdmin(isAdmin);
   }
 
   async function handleSaveEdit(event: FormEvent) {
@@ -93,6 +113,13 @@ export function ParticipantsPage() {
         // "leave unchanged" (see infra/lambda/update-player).
         phone: editForm.phone || null,
       });
+      if (editForm.isAdmin !== editingWasAdmin) {
+        if (editForm.isAdmin) {
+          await promoteToAdmin(idToken, editingId);
+        } else {
+          await demoteFromAdmin(idToken, editingId);
+        }
+      }
       setEditingId(null);
       await refresh();
     } catch (err) {
@@ -101,35 +128,6 @@ export function ParticipantsPage() {
       setSaving(false);
     }
   }
-
-  async function handlePromote(playerId: string) {
-    setError(null);
-    setActionBusyId(playerId);
-    try {
-      await promoteToAdmin(idToken, playerId);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to make this participant an admin');
-    } finally {
-      setActionBusyId(null);
-    }
-  }
-
-  async function handleDemote(playerId: string) {
-    setError(null);
-    setActionBusyId(playerId);
-    try {
-      await demoteFromAdmin(idToken, playerId);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove admin status');
-    } finally {
-      setActionBusyId(null);
-    }
-  }
-
-  const editingPlayer = players.find((p) => p.playerId === editingId);
-  const editingIsAdmin = !!editingPlayer?.phone && adminPhones.has(editingPlayer.phone);
 
   return (
     <div>
@@ -149,16 +147,29 @@ export function ParticipantsPage() {
             />
           </label>
           <label>
-            Phone (optional — enables login)
+            Phone (optional — enables login; leave blank for a guest)
             <input
               type="tel"
+              inputMode="numeric"
               value={registerForm.phone}
-              onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
+              onChange={(e) =>
+                setRegisterForm({ ...registerForm, phone: sanitizePhoneInput(e.target.value) })
+              }
               placeholder="31612345678"
               pattern={PHONE_PATTERN}
               title={PHONE_HINT}
             />
           </label>
+          {registerForm.phone && (
+            <label>
+              <input
+                type="checkbox"
+                checked={registerForm.isAdmin}
+                onChange={(e) => setRegisterForm({ ...registerForm, isAdmin: e.target.checked })}
+              />
+              Admin
+            </label>
+          )}
           <button type="submit" className="button-primary" disabled={registering}>
             {registering ? 'Registering…' : 'Register'}
           </button>
@@ -183,12 +194,7 @@ export function ParticipantsPage() {
               <tbody>
                 {players.map((player) => {
                   const isRowAdmin = !!player.phone && adminPhones.has(player.phone);
-                  // Login is only actually enabled once a phone is set —
-                  // see infra/lambda/create-player and update-player,
-                  // which keep cognitoSub in lockstep with phone.
-                  const canPromote = !!player.phone && !isRowAdmin;
                   const isSelf = !!player.phone && player.phone === user!.username;
-                  const busy = actionBusyId === player.playerId;
 
                   return editingId === player.playerId ? (
                     <tr key={player.playerId}>
@@ -202,17 +208,31 @@ export function ParticipantsPage() {
                           />
                           <input
                             type="tel"
+                            inputMode="numeric"
                             value={editForm.phone}
-                            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                            placeholder="Phone"
-                            pattern={PHONE_PATTERN}
-                            disabled={editingIsAdmin}
-                            title={
-                              editingIsAdmin
-                                ? "Admins can't be renumbered here — use the AWS console, or remove admin status first."
-                                : PHONE_HINT
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, phone: sanitizePhoneInput(e.target.value) })
                             }
+                            placeholder="Phone (blank for a guest)"
+                            pattern={PHONE_PATTERN}
+                            title={PHONE_HINT}
                           />
+                          {editForm.phone && (
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={editForm.isAdmin}
+                                disabled={isSelf && editingWasAdmin}
+                                title={
+                                  isSelf && editingWasAdmin
+                                    ? "You can't remove your own admin status — ask another admin, or use the AWS console."
+                                    : undefined
+                                }
+                                onChange={(e) => setEditForm({ ...editForm, isAdmin: e.target.checked })}
+                              />
+                              Admin
+                            </label>
+                          )}
                           <button type="submit" className="button-primary" disabled={saving}>
                             {saving ? 'Saving…' : 'Save'}
                           </button>
@@ -220,7 +240,6 @@ export function ParticipantsPage() {
                             Cancel
                           </button>
                         </form>
-                        {editingIsAdmin && <p>{PHONE_HINT}</p>}
                       </td>
                     </tr>
                   ) : (
@@ -228,33 +247,10 @@ export function ParticipantsPage() {
                       <td>{player.displayName}</td>
                       <td>{player.phone ?? '—'}</td>
                       <td>
-                        <button type="button" onClick={() => startEdit(player)}>
+                        <button type="button" onClick={() => startEdit(player, isRowAdmin)}>
                           Edit
                         </button>{' '}
-                        {isRowAdmin && <span className="status-badge">Admin</span>}{' '}
-                        {isRowAdmin ? (
-                          <button
-                            type="button"
-                            disabled={busy || isSelf}
-                            title={
-                              isSelf
-                                ? "You can't remove your own admin status — ask another admin, or use the AWS console."
-                                : undefined
-                            }
-                            onClick={() => handleDemote(player.playerId)}
-                          >
-                            {busy ? 'Removing…' : 'Remove admin'}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={busy || !canPromote}
-                            title={canPromote ? undefined : 'Register a phone number first'}
-                            onClick={() => handlePromote(player.playerId)}
-                          >
-                            {busy ? 'Promoting…' : 'Make admin'}
-                          </button>
-                        )}
+                        {isRowAdmin && <span className="status-badge">Admin</span>}
                       </td>
                     </tr>
                   );

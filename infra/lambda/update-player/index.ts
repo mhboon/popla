@@ -6,6 +6,7 @@ import {
   AdminSetUserPasswordCommand,
   AdminDeleteUserCommand,
   AdminListGroupsForUserCommand,
+  AdminAddUserToGroupCommand,
   UsernameExistsException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { PHONE_REGEX, PHONE_FORMAT_ERROR } from '../shared/phone';
@@ -47,12 +48,12 @@ export const handler = async (event: { arguments: UpdatePlayerArgs }) => {
   let newCognitoSub: string | null | undefined;
 
   if (phoneChanging) {
-    // Renumbering (or clearing) an admin's phone via this UI would
-    // silently strip their Admins-group membership, since deleting the
-    // old Cognito user (below) doesn't carry group membership over to a
-    // recreated one — see ARCHITECTURE.md's Auth section. Block it here
-    // (the real guard) regardless of whether the UI also disables the
-    // field.
+    // Renumbering (or clearing) an admin's phone deletes their old
+    // Cognito user below, which doesn't carry Admins-group membership
+    // over to a freshly created one — see ARCHITECTURE.md's Auth
+    // section. Capture it here so it can be restored on the new user
+    // once created, rather than silently dropping admin status.
+    let wasAdmin = false;
     if (existing.cognitoSub) {
       const { Groups } = await cognito.send(
         new AdminListGroupsForUserCommand({
@@ -60,11 +61,7 @@ export const handler = async (event: { arguments: UpdatePlayerArgs }) => {
           Username: existing.phone,
         })
       );
-      if (Groups?.some((g) => g.GroupName === 'Admins')) {
-        throw new Error(
-          'Cannot change phone number for an admin. Remove admin status first, or use the AWS console.'
-        );
-      }
+      wasAdmin = Groups?.some((g) => g.GroupName === 'Admins') ?? false;
     }
 
     // Create the new Cognito user (if any) *before* deleting the old
@@ -90,6 +87,17 @@ export const handler = async (event: { arguments: UpdatePlayerArgs }) => {
             Permanent: true,
           })
         );
+        // Done before the old user is deleted below, so there's never a
+        // moment where neither Cognito user holds Admins membership.
+        if (wasAdmin) {
+          await cognito.send(
+            new AdminAddUserToGroupCommand({
+              UserPoolId: USER_POOL_ID,
+              Username: phone,
+              GroupName: 'Admins',
+            })
+          );
+        }
       } catch (err) {
         if (err instanceof UsernameExistsException) {
           throw new Error('This phone number is already registered to another participant.', {
