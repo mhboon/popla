@@ -14,7 +14,7 @@ export function ShareButton({ title, text, label = 'Share' }: { title: string; t
 
   return (
     <span className="share-button">
-      <button type="button" className="share-icon-button" onClick={handleClick} aria-label={label} title={label}>
+      <button type="button" className="icon-button" onClick={handleClick} aria-label={label} title={label}>
         <ShareIcon />
       </button>
       {feedback && <span className="share-feedback">{feedback}</span>}

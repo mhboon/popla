@@ -151,7 +151,9 @@ export function MatchdayPage() {
   }
 
   function playerName(playerId: string): string {
-    return players.get(playerId)?.displayName ?? playerId;
+    const player = players.get(playerId);
+    if (!player) return playerId;
+    return player.isGuest ? `${player.displayName} (Guest)` : player.displayName;
   }
 
   if (loading) return <p>Loading…</p>;

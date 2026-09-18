@@ -104,7 +104,11 @@ export function SeasonRankingPage() {
     (a, b) => a.winnerPoints === b.winnerPoints
   );
   const orderedMatchdays = [...matchdays].sort(compareMatchdayWhenDesc);
-  const playerName = (playerId: string) => players.get(playerId)?.displayName ?? playerId;
+  const playerName = (playerId: string) => {
+    const player = players.get(playerId);
+    if (!player) return playerId;
+    return player.isGuest ? `${player.displayName} (Guest)` : player.displayName;
+  };
 
   return (
     <div>
@@ -202,7 +206,7 @@ export function SeasonRankingPage() {
                     <th>#</th>
                     <th>Player</th>
                     <th>Points</th>
-                    <th>Matchdays played</th>
+                    <th>Played</th>
                   </tr>
                 </thead>
                 <tbody>
