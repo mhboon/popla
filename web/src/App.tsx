@@ -4,6 +4,7 @@ import { useAuth } from './lib/useAuth';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
+import { HomePage } from './pages/HomePage';
 import { AccountPage } from './pages/AccountPage';
 import { ParticipantsPage } from './pages/ParticipantsPage';
 import { SeasonsPage } from './pages/SeasonsPage';
@@ -12,10 +13,25 @@ import { MatchdaysPage } from './pages/MatchdaysPage';
 import { MatchdaySetupPage } from './pages/MatchdaySetupPage';
 import { MatchdayPage } from './pages/MatchdayPage';
 
-function HomeRedirect() {
-  const { user } = useAuth();
+// "/" itself: the login page when signed out, a real home page when
+// signed in — not a redirect into whichever section an admin vs.
+// participant used to land on, so the logo (which links here) and a
+// bookmark of "/" both behave the same regardless of role.
+function RootRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <p>Loading…</p>;
   if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={user.isAdmin ? '/participants' : '/seasons'} replace />;
+  return <HomePage />;
+}
+
+// Bookmarking or directly opening /login while already signed in (the
+// original bug report here) otherwise just shows the login form again
+// despite a perfectly valid session — send it home instead.
+function LoginRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <p>Loading…</p>;
+  if (user) return <Navigate to="/" replace />;
+  return <LoginPage />;
 }
 
 export function App() {
@@ -23,8 +39,8 @@ export function App() {
     <AuthProvider>
       <Layout>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<HomeRedirect />} />
+          <Route path="/login" element={<LoginRoute />} />
+          <Route path="/" element={<RootRoute />} />
           <Route
             path="/account"
             element={

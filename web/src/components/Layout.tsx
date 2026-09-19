@@ -1,36 +1,46 @@
-import type { ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">
+        <Link to="/" className="brand" onClick={closeMenu}>
           <img src="/logo-popla.png" alt="Popla Cup" className="brand-logo" />
         </Link>
         {user && (
-          <nav>
-            {user.isAdmin && <Link to="/participants">Participants</Link>}
-            <Link to="/seasons">Seasons</Link>
-            <Link to="/matchdays">Matchdays</Link>
-            <Link to="/account">Account</Link>
+          <>
             <button
               type="button"
-              className="icon-button"
-              onClick={() => {
-                logout();
-                navigate('/login');
-              }}
-              aria-label={`Sign out (${user.username})`}
-              title={`Sign out (${user.username})`}
+              className="icon-button menu-toggle"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
             >
-              <SignOutIcon />
+              {menuOpen ? <CloseIcon /> : <MenuIcon />}
             </button>
-          </nav>
+            <nav className={menuOpen ? 'nav-open' : undefined}>
+              {user.isAdmin && (
+                <Link to="/participants" onClick={closeMenu}>
+                  Participants
+                </Link>
+              )}
+              <Link to="/seasons" onClick={closeMenu}>
+                Seasons
+              </Link>
+              <Link to="/matchdays" onClick={closeMenu}>
+                Matchdays
+              </Link>
+              <Link to="/account" onClick={closeMenu}>
+                Account
+              </Link>
+            </nav>
+          </>
         )}
       </header>
       <main className="app-main">{children}</main>
@@ -39,11 +49,11 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 }
 
-function SignOutIcon() {
+function MenuIcon() {
   return (
     <svg
-      width="18"
-      height="18"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -52,9 +62,28 @@ function SignOutIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
