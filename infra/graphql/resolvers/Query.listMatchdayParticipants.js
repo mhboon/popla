@@ -12,14 +12,14 @@ export function request(ctx) {
   };
 }
 
-// A row with no stored `status` was written by createMatchday/
-// updateMatchday, which never set one (see infra/lambda/set-matchday-
-// joining, the only writer of `status`) — that's every row once a
-// matchday leaves REGISTRATION, so it reads as JOINING.
+// A row with no stored `status` pre-dates this field entirely (every
+// writer sets one now — see infra/lambda/set-matchday-joining and
+// Mutation.createMatchday.js) — reads as JOINING either way.
 export function response(ctx) {
   return ctx.result.items.map((item) => ({
     matchdayId: item.matchdayId,
     playerId: item.playerId,
     status: item.status ?? 'JOINING',
+    updatedAt: item.updatedAt ?? null,
   }));
 }

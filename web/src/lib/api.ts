@@ -19,8 +19,9 @@ const PLAYER_FIELDS = 'playerId displayName phone isGuest createdAt';
 // not select that field, or the whole call throws.
 const PLAYER_NAME_FIELDS = 'playerId displayName isGuest createdAt';
 const SEASON_FIELDS = 'seasonId name status startDate closedAt';
-const MATCHDAY_FIELDS = 'matchdayId seasonId date startTime format status maxParticipants joinedCount';
-const MATCHDAY_PARTICIPANT_FIELDS = 'matchdayId playerId status';
+const MATCHDAY_FIELDS =
+  'matchdayId seasonId date startTime format status selfRegistrationEnabled maxParticipants';
+const MATCHDAY_PARTICIPANT_FIELDS = 'matchdayId playerId status updatedAt';
 const MATCH_FIELDS = 'matchdayId round court team1PlayerIds team2PlayerIds team1Games team2Games status';
 const MATCHDAY_RESULT_FIELDS =
   'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints winnerPoint';
@@ -185,12 +186,21 @@ export function createMatchday(
     startTime?: string;
     format: MatchdayFormat;
     participantIds: string[];
+    selfRegistrationEnabled: boolean;
+    maxParticipants?: number;
   }
 ) {
   return graphqlRequest<{ createMatchday: Matchday }>(
     idToken,
-    `mutation($seasonId: ID!, $date: AWSDate!, $startTime: AWSTime, $format: MatchdayFormat!, $participantIds: [ID!]!) {
-      createMatchday(seasonId: $seasonId, date: $date, startTime: $startTime, format: $format, participantIds: $participantIds) { ${MATCHDAY_FIELDS} }
+    `mutation(
+      $seasonId: ID!, $date: AWSDate!, $startTime: AWSTime, $format: MatchdayFormat!,
+      $participantIds: [ID!]!, $selfRegistrationEnabled: Boolean!, $maxParticipants: Int
+    ) {
+      createMatchday(
+        seasonId: $seasonId, date: $date, startTime: $startTime, format: $format,
+        participantIds: $participantIds, selfRegistrationEnabled: $selfRegistrationEnabled,
+        maxParticipants: $maxParticipants
+      ) { ${MATCHDAY_FIELDS} }
     }`,
     input
   ).then((d) => d.createMatchday);
@@ -212,25 +222,6 @@ export function listMatchdayParticipants(idToken: string, matchdayId: string) {
   ).then((d) => d.listMatchdayParticipants);
 }
 
-export function openRegistration(
-  idToken: string,
-  input: {
-    seasonId: string;
-    date: string;
-    startTime?: string;
-    format: MatchdayFormat;
-    maxParticipants: number;
-  }
-) {
-  return graphqlRequest<{ openRegistration: Matchday }>(
-    idToken,
-    `mutation($seasonId: ID!, $date: AWSDate!, $startTime: AWSTime, $format: MatchdayFormat!, $maxParticipants: Int!) {
-      openRegistration(seasonId: $seasonId, date: $date, startTime: $startTime, format: $format, maxParticipants: $maxParticipants) { ${MATCHDAY_FIELDS} }
-    }`,
-    input
-  ).then((d) => d.openRegistration);
-}
-
 export function setMatchdayJoining(
   idToken: string,
   input: { matchdayId: string; playerId?: string; joining: boolean }
@@ -242,14 +233,6 @@ export function setMatchdayJoining(
     }`,
     input
   ).then((d) => d.setMatchdayJoining);
-}
-
-export function closeRegistration(idToken: string, matchdayId: string) {
-  return graphqlRequest<{ closeRegistration: Matchday }>(
-    idToken,
-    `mutation($matchdayId: ID!) { closeRegistration(matchdayId: $matchdayId) { ${MATCHDAY_FIELDS} } }`,
-    { matchdayId }
-  ).then((d) => d.closeRegistration);
 }
 
 export function getMatchday(idToken: string, matchdayId: string) {
@@ -267,13 +250,20 @@ export function updateMatchday(
     date?: string;
     startTime?: string;
     format?: MatchdayFormat;
-    participantIds?: string[];
+    selfRegistrationEnabled?: boolean;
+    maxParticipants?: number | null;
   }
 ) {
   return graphqlRequest<{ updateMatchday: Matchday }>(
     idToken,
-    `mutation($matchdayId: ID!, $date: AWSDate, $startTime: AWSTime, $format: MatchdayFormat, $participantIds: [ID!]) {
-      updateMatchday(matchdayId: $matchdayId, date: $date, startTime: $startTime, format: $format, participantIds: $participantIds) { ${MATCHDAY_FIELDS} }
+    `mutation(
+      $matchdayId: ID!, $date: AWSDate, $startTime: AWSTime, $format: MatchdayFormat,
+      $selfRegistrationEnabled: Boolean, $maxParticipants: Int
+    ) {
+      updateMatchday(
+        matchdayId: $matchdayId, date: $date, startTime: $startTime, format: $format,
+        selfRegistrationEnabled: $selfRegistrationEnabled, maxParticipants: $maxParticipants
+      ) { ${MATCHDAY_FIELDS} }
     }`,
     input
   ).then((d) => d.updateMatchday);

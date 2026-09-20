@@ -37,26 +37,38 @@ longer-running "season" ranking.
 
 ### Registration
 
-A matchday can be built either of two ways:
+One flow: creating a matchday means picking a date/format and,
+optionally, an already-known set of participants — as many or as few as
+the admin has confirmed so far (could be all of them, some of them, or
+none yet). Every matchday also has a **self-registration** toggle, set
+at creation and changeable later:
 
-- **Direct**: an admin picks the final, already-a-multiple-of-4
-  participant list up front (the original flow).
-- **Open registration**: an admin opens a matchday for registration with
-  a capacity (`maxParticipants`, e.g. 16 for 4 courts) instead of a fixed
-  list. While registration is open:
-  - Any logged-in participant can join or leave for themselves.
-  - An admin can also add or remove any participant directly — this is
-    the only way a **guest** (see below) gets onto the roster, since a
-    guest has no login to self-serve with.
-  - Joining once capacity is reached waitlists the participant instead of
-    failing. Leaving a confirmed spot automatically promotes the
-    longest-waiting waitlisted participant into it.
-  - The admin closes registration once the confirmed ("joining")
-    count is a non-zero multiple of 4, locking in that roster (anyone
-    still waitlisted, or who declined, is dropped) and moving the
-    matchday into the same setup/round-generation flow as the direct
-    path. From this point on, direct and open-registration matchdays are
-    indistinguishable.
+- **On**: any logged-in participant can register or unregister
+  themselves, right up until the admin starts the matchday. An admin can
+  still add or remove anyone directly too, at any time — this is also
+  the only way a **guest** (see below) gets onto the roster, since a
+  guest has no login to self-serve with.
+- **Off**: only an admin can add or remove participants; nobody can
+  self-register.
+
+An optional capacity (`maxParticipants`) applies either way, independent
+of the toggle: registering past it waitlists the participant instead of
+failing, whether they registered themselves or an admin added them.
+Leaving a confirmed spot (opting out) automatically promotes the
+longest-waiting waitlisted participant into it. With no capacity set,
+nobody is ever waitlisted.
+
+The admin starts the matchday (generating round 1) once the confirmed
+("registered") count is a non-zero multiple of 4 — this both locks in
+that roster (anyone still waitlisted, or who declined, is dropped) and
+begins play; there's no separate "close registration" step. Right
+before starting, the admin can bulk-review and adjust the final list
+(add/remove several people at once) rather than one at a time.
+
+Everyone (not just admins) can see the current roster and waiting list,
+in order, on a matchday that hasn't started yet: registered participants
+newest-first, waitlisted participants oldest-first (i.e. queue order —
+who gets promoted next).
 
 ### Guest participants
 
@@ -203,9 +215,14 @@ separate admin login.
   participant who is themselves an admin (see Roles & Access below).
   See `ARCHITECTURE.md`'s Auth section for the Cognito implementation.
 - Logged-in, non-admin participants can, beyond viewing seasons and
-  matchdays (results, rankings): join or leave a matchday that's open for
-  registration (see Registration above), for themselves only — no other
-  edit/action capability, no admin controls are shown, let alone enabled.
+  matchdays (results, rankings): register or unregister themselves for a
+  not-yet-started matchday with self-registration on (see Registration
+  above), for themselves only — no other edit/action capability, no
+  admin controls are shown, let alone enabled. The home page surfaces
+  any such matchday with the participant's own status (not registered /
+  registered / waitlisted) and, once it's started, drops it from view
+  again unless they actually ended up in it — an admin keeps seeing it
+  regardless, for operational access (recording scores etc.).
 - Admin status itself is manageable by existing admins, through the UI:
   promote a registered participant to admin, or demote one (an admin
   can't demote themselves, to avoid stranding the promote/demote UI if

@@ -25,10 +25,21 @@ export const handler = async (event: {
 }) => {
   const { matchdayId, playerId: targetPlayerId, joining } = event.arguments;
 
+  const { Item: matchday } = await ddb.send(
+    new GetCommand({ TableName: MATCHDAYS_TABLE, Key: { matchdayId } })
+  );
+  if (!matchday) {
+    throw new Error(`Matchday ${matchdayId} not found`);
+  }
+  if (matchday.status !== 'SETUP') {
+    throw new Error("This matchday isn't open for roster changes.");
+  }
+
   // A non-admin caller can only ever act on their own RSVP — the
   // `playerId` argument exists solely for an admin acting on someone
   // else's behalf (most notably a guest, who has no login to self-serve
-  // with). See ARCHITECTURE.md's Auth section for the Admins-group check.
+  // with), which is always allowed regardless of selfRegistrationEnabled.
+  // See ARCHITECTURE.md's Auth section for the Admins-group check.
   let playerId: string;
   if (targetPlayerId) {
     if (!event.identity?.groups?.includes('Admins')) {
@@ -36,6 +47,9 @@ export const handler = async (event: {
     }
     playerId = targetPlayerId;
   } else {
+    if (!matchday.selfRegistrationEnabled) {
+      throw new Error("This matchday isn't open for self-registration — ask an admin to add you.");
+    }
     const { Items } = await ddb.send(
       new QueryCommand({
         TableName: PLAYERS_TABLE,
@@ -51,25 +65,30 @@ export const handler = async (event: {
     playerId = myPlayer.playerId as string;
   }
 
-  const { Item: matchday } = await ddb.send(
-    new GetCommand({ TableName: MATCHDAYS_TABLE, Key: { matchdayId } })
-  );
-  if (!matchday) {
-    throw new Error(`Matchday ${matchdayId} not found`);
-  }
-  if (matchday.status !== 'REGISTRATION') {
-    throw new Error('This matchday is not open for registration.');
-  }
-
   const { Item: existing } = await ddb.send(
     new GetCommand({ TableName: PARTICIPANTS_TABLE, Key: { matchdayId, playerId } })
   );
 
   if (joining) {
     if (existing?.status === 'JOINING' || existing?.status === 'WAITLISTED') {
-      return { matchdayId, playerId, status: existing.status };
+      return { matchdayId, playerId, status: existing.status, updatedAt: existing.updatedAt ?? null };
     }
     const now = new Date().toISOString();
+
+    // No cap: nothing can ever be waitlisted, so skip the conditional
+    // counter transaction entirely rather than have `joinedCount <
+    // maxParticipants` evaluate false against a non-existent attribute
+    // (which would wrongly waitlist every join).
+    if (matchday.maxParticipants == null) {
+      await ddb.send(
+        new PutCommand({
+          TableName: PARTICIPANTS_TABLE,
+          Item: { matchdayId, playerId, status: 'JOINING', updatedAt: now },
+        })
+      );
+      return { matchdayId, playerId, status: 'JOINING', updatedAt: now };
+    }
+
     try {
       await ddb.send(
         new TransactWriteCommand({
@@ -92,7 +111,7 @@ export const handler = async (event: {
           ],
         })
       );
-      return { matchdayId, playerId, status: 'JOINING' };
+      return { matchdayId, playerId, status: 'JOINING', updatedAt: now };
     } catch (err) {
       if (err instanceof TransactionCanceledException) {
         await ddb.send(
@@ -101,7 +120,7 @@ export const handler = async (event: {
             Item: { matchdayId, playerId, status: 'WAITLISTED', updatedAt: now },
           })
         );
-        return { matchdayId, playerId, status: 'WAITLISTED' };
+        return { matchdayId, playerId, status: 'WAITLISTED', updatedAt: now };
       }
       throw err;
     }
@@ -109,17 +128,23 @@ export const handler = async (event: {
 
   // joining: false
   if (!existing || existing.status === 'DECLINED') {
-    return { matchdayId, playerId, status: existing?.status ?? 'DECLINED' };
+    return {
+      matchdayId,
+      playerId,
+      status: existing?.status ?? 'DECLINED',
+      updatedAt: existing?.updatedAt ?? null,
+    };
   }
 
   if (existing.status === 'WAITLISTED') {
+    const now = new Date().toISOString();
     await ddb.send(
       new PutCommand({
         TableName: PARTICIPANTS_TABLE,
-        Item: { matchdayId, playerId, status: 'DECLINED', updatedAt: new Date().toISOString() },
+        Item: { matchdayId, playerId, status: 'DECLINED', updatedAt: now },
       })
     );
-    return { matchdayId, playerId, status: 'DECLINED' };
+    return { matchdayId, playerId, status: 'DECLINED', updatedAt: now };
   }
 
   // existing.status === 'JOINING' — freeing a confirmed spot. Promote the
@@ -136,6 +161,7 @@ export const handler = async (event: {
     .filter((p) => p.status === 'WAITLISTED')
     .sort((a, b) => (a.updatedAt as string).localeCompare(b.updatedAt as string));
   const promoted = waitlisted[0];
+  const declinedAt = new Date().toISOString();
 
   if (promoted) {
     await ddb.send(
@@ -144,7 +170,7 @@ export const handler = async (event: {
           {
             Put: {
               TableName: PARTICIPANTS_TABLE,
-              Item: { matchdayId, playerId, status: 'DECLINED', updatedAt: new Date().toISOString() },
+              Item: { matchdayId, playerId, status: 'DECLINED', updatedAt: declinedAt },
             },
           },
           {
@@ -154,21 +180,24 @@ export const handler = async (event: {
                 matchdayId,
                 playerId: promoted.playerId,
                 status: 'JOINING',
-                updatedAt: new Date().toISOString(),
+                updatedAt: declinedAt,
               },
             },
           },
         ],
       })
     );
-  } else {
+  } else if (matchday.maxParticipants != null) {
+    // Only maintained when there's a cap to enforce — see the joining
+    // branch above for why an uncapped matchday never touches this
+    // counter at all.
     await ddb.send(
       new TransactWriteCommand({
         TransactItems: [
           {
             Put: {
               TableName: PARTICIPANTS_TABLE,
-              Item: { matchdayId, playerId, status: 'DECLINED', updatedAt: new Date().toISOString() },
+              Item: { matchdayId, playerId, status: 'DECLINED', updatedAt: declinedAt },
             },
           },
           {
@@ -182,7 +211,14 @@ export const handler = async (event: {
         ],
       })
     );
+  } else {
+    await ddb.send(
+      new PutCommand({
+        TableName: PARTICIPANTS_TABLE,
+        Item: { matchdayId, playerId, status: 'DECLINED', updatedAt: declinedAt },
+      })
+    );
   }
 
-  return { matchdayId, playerId, status: 'DECLINED' };
+  return { matchdayId, playerId, status: 'DECLINED', updatedAt: declinedAt };
 };

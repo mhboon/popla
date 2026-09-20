@@ -1,11 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import {
-  DynamoDBDocumentClient,
-  GetCommand,
-  QueryCommand,
-  UpdateCommand,
-  TransactWriteCommand,
-} from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -17,11 +11,17 @@ interface UpdateMatchdayArgs {
   date?: string;
   startTime?: string;
   format?: 'MEXICANO' | 'AMERICANO';
-  participantIds?: string[];
+  selfRegistrationEnabled?: boolean;
+  maxParticipants?: number | null;
 }
 
+// Roster changes (add/remove participants) go exclusively through
+// setMatchdayJoining now — this only ever touches the Matchdays item
+// itself (date/startTime/format/selfRegistrationEnabled/maxParticipants),
+// so a plain UpdateCommand is enough; no transaction needed.
 export const handler = async (event: { arguments: UpdateMatchdayArgs }) => {
-  const { matchdayId, date, startTime, format, participantIds } = event.arguments;
+  const { matchdayId, date, startTime, format, selfRegistrationEnabled, maxParticipants } =
+    event.arguments;
 
   const { Item: matchday } = await ddb.send(
     new GetCommand({ TableName: MATCHDAYS_TABLE, Key: { matchdayId } })
@@ -35,88 +35,89 @@ export const handler = async (event: { arguments: UpdateMatchdayArgs }) => {
     );
   }
 
-  if (participantIds !== undefined && (participantIds.length === 0 || participantIds.length % 4 !== 0)) {
-    throw new Error('participantIds must be a non-zero multiple of 4');
-  }
+  const setClauses: string[] = [];
+  const removeClauses: string[] = [];
+  const names: Record<string, string> = {};
+  const values: Record<string, unknown> = {};
 
-  const matchdaySetClauses: string[] = [];
-  const matchdayNames: Record<string, string> = {};
-  const matchdayValues: Record<string, unknown> = {};
   if (date !== undefined) {
-    matchdaySetClauses.push('#date = :date');
-    matchdayNames['#date'] = 'date';
-    matchdayValues[':date'] = date;
+    setClauses.push('#date = :date');
+    names['#date'] = 'date';
+    values[':date'] = date;
   }
   if (startTime !== undefined) {
-    matchdaySetClauses.push('#startTime = :startTime');
-    matchdayNames['#startTime'] = 'startTime';
-    matchdayValues[':startTime'] = startTime;
+    setClauses.push('#startTime = :startTime');
+    names['#startTime'] = 'startTime';
+    values[':startTime'] = startTime;
   }
   if (format !== undefined) {
-    matchdaySetClauses.push('#format = :format');
-    matchdayNames['#format'] = 'format';
-    matchdayValues[':format'] = format;
+    setClauses.push('#format = :format');
+    names['#format'] = 'format';
+    values[':format'] = format;
+  }
+  if (selfRegistrationEnabled !== undefined) {
+    setClauses.push('#selfRegistrationEnabled = :selfRegistrationEnabled');
+    names['#selfRegistrationEnabled'] = 'selfRegistrationEnabled';
+    values[':selfRegistrationEnabled'] = selfRegistrationEnabled;
   }
 
-  if (participantIds === undefined) {
-    if (matchdaySetClauses.length > 0) {
-      await ddb.send(
-        new UpdateCommand({
-          TableName: MATCHDAYS_TABLE,
-          Key: { matchdayId },
-          UpdateExpression: `SET ${matchdaySetClauses.join(', ')}`,
-          ExpressionAttributeNames: matchdayNames,
-          ExpressionAttributeValues: matchdayValues,
+  if (maxParticipants !== undefined) {
+    names['#maxParticipants'] = 'maxParticipants';
+    names['#joinedCount'] = 'joinedCount';
+    if (maxParticipants === null) {
+      removeClauses.push('#maxParticipants', '#joinedCount');
+    } else {
+      if (maxParticipants <= 0) {
+        throw new Error('maxParticipants must be a positive number');
+      }
+      // joinedCount is recomputed here (not just the new cap written)
+      // because this is also how a cap gets *added* to a matchday that
+      // started uncapped — the counter set-matchday-joining maintains
+      // needs an accurate starting point either way.
+      const { Items: participants } = await ddb.send(
+        new QueryCommand({
+          TableName: PARTICIPANTS_TABLE,
+          KeyConditionExpression: 'matchdayId = :matchdayId',
+          ExpressionAttributeValues: { ':matchdayId': matchdayId },
         })
       );
+      const joiningCount = (participants ?? []).filter(
+        (p) => (p.status ?? 'JOINING') === 'JOINING'
+      ).length;
+      if (maxParticipants < joiningCount) {
+        throw new Error(
+          `maxParticipants can't be set below the current registered count (${joiningCount})`
+        );
+      }
+      setClauses.push('#maxParticipants = :maxParticipants', '#joinedCount = :joinedCount');
+      values[':maxParticipants'] = maxParticipants;
+      values[':joinedCount'] = joiningCount;
     }
-    return { ...matchday, date: date ?? matchday.date, startTime: startTime ?? matchday.startTime, format: format ?? matchday.format };
   }
 
-  const existingResult = await ddb.send(
-    new QueryCommand({
-      TableName: PARTICIPANTS_TABLE,
-      KeyConditionExpression: 'matchdayId = :matchdayId',
-      ExpressionAttributeValues: { ':matchdayId': matchdayId },
-    })
-  );
-  const existingIds = new Set((existingResult.Items ?? []).map((item) => item.playerId as string));
-  const newIds = new Set(participantIds);
+  if (setClauses.length > 0 || removeClauses.length > 0) {
+    const expressionParts = [
+      setClauses.length > 0 ? `SET ${setClauses.join(', ')}` : null,
+      removeClauses.length > 0 ? `REMOVE ${removeClauses.join(', ')}` : null,
+    ].filter((part): part is string => part !== null);
 
-  const toAdd = [...newIds].filter((id) => !existingIds.has(id));
-  const toRemove = [...existingIds].filter((id) => !newIds.has(id));
-
-  const transactItems: NonNullable<
-    ConstructorParameters<typeof TransactWriteCommand>[0]['TransactItems']
-  > = [];
-
-  if (matchdaySetClauses.length > 0) {
-    transactItems.push({
-      Update: {
+    await ddb.send(
+      new UpdateCommand({
         TableName: MATCHDAYS_TABLE,
         Key: { matchdayId },
-        UpdateExpression: `SET ${matchdaySetClauses.join(', ')}`,
-        ExpressionAttributeNames: matchdayNames,
-        ExpressionAttributeValues: matchdayValues,
-      },
-    });
-  }
-  for (const playerId of toAdd) {
-    transactItems.push({
-      Put: { TableName: PARTICIPANTS_TABLE, Item: { matchdayId, playerId } },
-    });
-  }
-  for (const playerId of toRemove) {
-    transactItems.push({
-      Delete: { TableName: PARTICIPANTS_TABLE, Key: { matchdayId, playerId } },
-    });
+        UpdateExpression: expressionParts.join(' '),
+        ExpressionAttributeNames: names,
+        ...(Object.keys(values).length > 0 ? { ExpressionAttributeValues: values } : {}),
+      })
+    );
   }
 
-  // Up to 32 participants means at most 32 add + 32 remove + 1 matchday
-  // update = 65 items, comfortably under the 100-item transaction limit.
-  if (transactItems.length > 0) {
-    await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-  }
-
-  return { ...matchday, date: date ?? matchday.date, startTime: startTime ?? matchday.startTime, format: format ?? matchday.format };
+  return {
+    ...matchday,
+    date: date ?? matchday.date,
+    startTime: startTime ?? matchday.startTime,
+    format: format ?? matchday.format,
+    selfRegistrationEnabled: selfRegistrationEnabled ?? matchday.selfRegistrationEnabled,
+    maxParticipants: maxParticipants !== undefined ? maxParticipants : matchday.maxParticipants,
+  };
 };

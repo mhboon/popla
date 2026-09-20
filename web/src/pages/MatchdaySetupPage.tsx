@@ -1,15 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
-import {
-  createMatchday,
-  createPlayer,
-  getMatchday,
-  listMatchdayParticipantIds,
-  listPlayers,
-  listSeasons,
-  updateMatchday,
-} from '../lib/api';
+import { createMatchday, createPlayer, getMatchday, listPlayers, listSeasons, updateMatchday } from '../lib/api';
 import { sortByName } from '../lib/sort';
 import { PlayerMultiSelect } from '../components/PlayerMultiSelect';
 import type { MatchdayFormat, Player, Season } from '../types/graphql';
@@ -30,6 +22,8 @@ export function MatchdaySetupPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState('');
   const [format, setFormat] = useState<MatchdayFormat>('MEXICANO');
+  const [selfRegistrationEnabled, setSelfRegistrationEnabled] = useState(false);
+  const [maxParticipants, setMaxParticipants] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,14 +33,15 @@ export function MatchdaySetupPage() {
   const [creatingPlayer, setCreatingPlayer] = useState(false);
 
   useEffect(() => {
-    const loaders: [Promise<Player[]>, Promise<Season[]>] = [listPlayers(idToken), listSeasons(idToken)];
+    // Edit mode manages date/format/self-registration only — the roster
+    // itself is managed from the matchday page (bulk multiselect there),
+    // so there's no need to fetch the player list or current roster here.
+    const loaders: [Promise<Player[]>, Promise<Season[]>] = editing
+      ? [Promise.resolve([]), listSeasons(idToken)]
+      : [listPlayers(idToken), listSeasons(idToken)];
 
-    Promise.all([
-      ...loaders,
-      matchdayId ? getMatchday(idToken, matchdayId) : Promise.resolve(null),
-      matchdayId ? listMatchdayParticipantIds(idToken, matchdayId) : Promise.resolve<string[]>([]),
-    ])
-      .then(([playerList, seasons, matchday, participantIds]) => {
+    Promise.all([...loaders, matchdayId ? getMatchday(idToken, matchdayId) : Promise.resolve(null)])
+      .then(([playerList, seasons, matchday]) => {
         setPlayers(sortByName(playerList));
         setActiveSeason(seasons.find((s) => s.status === 'ACTIVE') ?? null);
         if (matchday) {
@@ -56,9 +51,8 @@ export function MatchdaySetupPage() {
           setDate(matchday.date);
           setStartTime(matchday.startTime ? matchday.startTime.slice(0, 5) : '');
           setFormat(matchday.format);
-        }
-        if (participantIds.length > 0) {
-          setSelected(new Set(participantIds));
+          setSelfRegistrationEnabled(matchday.selfRegistrationEnabled);
+          setMaxParticipants(matchday.maxParticipants != null ? String(matchday.maxParticipants) : '');
         }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load setup data'))
@@ -74,9 +68,6 @@ export function MatchdaySetupPage() {
       return next;
     });
   }
-
-  const count = selected.size;
-  const validCount = count > 0 && count % 4 === 0;
 
   async function handleAddPlayer(event: FormEvent) {
     event.preventDefault();
@@ -101,7 +92,6 @@ export function MatchdaySetupPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!validCount) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -111,7 +101,8 @@ export function MatchdaySetupPage() {
           date,
           startTime: startTime ? `${startTime}:00` : undefined,
           format,
-          participantIds: [...selected],
+          selfRegistrationEnabled,
+          maxParticipants: maxParticipants ? Number(maxParticipants) : null,
         });
         navigate(`/matchdays/${matchdayId}`);
       } else {
@@ -122,6 +113,8 @@ export function MatchdaySetupPage() {
           startTime: startTime ? `${startTime}:00` : undefined,
           format,
           participantIds: [...selected],
+          selfRegistrationEnabled,
+          maxParticipants: maxParticipants ? Number(maxParticipants) : undefined,
         });
         navigate(`/matchdays/${matchday.matchdayId}`);
       }
@@ -169,48 +162,79 @@ export function MatchdaySetupPage() {
           </label>
         </div>
 
-        <fieldset>
-          <legend>Participants</legend>
-          <p className={`participant-count${validCount ? ' participant-count-valid' : ''}`}>
-            <span className="scoreboard-chip">{count}</span>
-            {validCount ? ' selected' : ' selected — must be a multiple of 4'}
-          </p>
-          <PlayerMultiSelect players={players} selected={selected} onToggle={toggle} />
+        <div className="inline-form">
+          <label>
+            <input
+              type="checkbox"
+              checked={selfRegistrationEnabled}
+              onChange={(e) => setSelfRegistrationEnabled(e.target.checked)}
+            />
+            Allow self-registration
+          </label>
 
-          {addingPlayer ? (
-            <form onSubmit={handleAddPlayer} className="inline-form">
-              <label>
-                Name
-                <input
-                  type="text"
-                  value={newPlayerName}
-                  onChange={(e) => setNewPlayerName(e.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Phone (optional)
-                <input
-                  type="text"
-                  value={newPlayerPhone}
-                  onChange={(e) => setNewPlayerPhone(e.target.value)}
-                />
-              </label>
-              <button type="submit" className="button-primary" disabled={creatingPlayer}>
-                {creatingPlayer ? 'Adding…' : 'Add participant'}
-              </button>
-              <button type="button" onClick={() => setAddingPlayer(false)}>
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <button type="button" onClick={() => setAddingPlayer(true)}>
-              + New participant
-            </button>
-          )}
-        </fieldset>
+          <label>
+            Max participants (optional — leave blank for no cap)
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={maxParticipants}
+              onChange={(e) => setMaxParticipants(e.target.value)}
+              placeholder="No cap"
+            />
+          </label>
+        </div>
+        <p>
+          {selfRegistrationEnabled
+            ? "Participants can join or leave themselves until you start the matchday — you can still add or remove anyone yourself too."
+            : 'Only you can add or remove participants — nobody can self-register.'}{' '}
+          A cap waitlists anyone joining past it, whether they added themselves or you did.
+        </p>
 
-        <button type="submit" className="button-primary" disabled={!validCount || submitting}>
+        {!editing && (
+          <fieldset>
+            <legend>Participants</legend>
+            <p className="participant-count">
+              <span className="scoreboard-chip">{selected.size}</span>
+              {' selected — pick as many or as few as you already know; add more later on the matchday page'}
+            </p>
+            <PlayerMultiSelect players={players} selected={selected} onToggle={toggle} />
+
+            {addingPlayer ? (
+              <form onSubmit={handleAddPlayer} className="inline-form">
+                <label>
+                  Name
+                  <input
+                    type="text"
+                    value={newPlayerName}
+                    onChange={(e) => setNewPlayerName(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Phone (optional)
+                  <input
+                    type="text"
+                    value={newPlayerPhone}
+                    onChange={(e) => setNewPlayerPhone(e.target.value)}
+                  />
+                </label>
+                <button type="submit" className="button-primary" disabled={creatingPlayer}>
+                  {creatingPlayer ? 'Adding…' : 'Add participant'}
+                </button>
+                <button type="button" onClick={() => setAddingPlayer(false)}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setAddingPlayer(true)}>
+                + New participant
+              </button>
+            )}
+          </fieldset>
+        )}
+
+        <button type="submit" className="button-primary" disabled={submitting}>
           {submitting ? 'Saving…' : editing ? 'Save changes' : 'Continue'}
         </button>
       </form>
