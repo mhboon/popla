@@ -275,7 +275,6 @@ export class PoplaBackendStack extends Stack {
       { dataSource: playersDS, typeName: 'Query', fieldName: 'listPlayers', file: 'Query.listPlayers.js' },
       { dataSource: playersDS, typeName: 'Query', fieldName: 'getMyPlayer', file: 'Query.getMyPlayer.js' },
       { dataSource: matchdayParticipantsDS, typeName: 'Query', fieldName: 'listMatchdayParticipants', file: 'Query.listMatchdayParticipants.js' },
-      { dataSource: matchdaysDS, typeName: 'Mutation', fieldName: 'openRegistration', file: 'Mutation.openRegistration.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'listSeasons', file: 'Query.listSeasons.js' },
       { dataSource: seasonsDS, typeName: 'Query', fieldName: 'getSeason', file: 'Query.getSeason.js' },
       { dataSource: seasonsDS, typeName: 'Mutation', fieldName: 'createSeason', file: 'Mutation.createSeason.js' },
@@ -318,9 +317,11 @@ export class PoplaBackendStack extends Stack {
       environment: lambdaEnv,
     });
     // Read-write: also flips status SETUP -> IN_PROGRESS when round 1 is
-    // generated (see infra/lambda/generate-round/index.ts).
+    // generated, and (matchdayParticipantsTable) deletes any still-
+    // WAITLISTED/DECLINED rows at that same moment (see
+    // infra/lambda/generate-round/index.ts).
     matchdaysTable.grantReadWriteData(generateRoundFn);
-    matchdayParticipantsTable.grantReadData(generateRoundFn);
+    matchdayParticipantsTable.grantReadWriteData(generateRoundFn);
     matchesTable.grantReadWriteData(generateRoundFn);
 
     const closeMatchdayFn = new NodejsFunction(this, 'CloseMatchdayFn', {
@@ -402,28 +403,6 @@ export class PoplaBackendStack extends Stack {
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(
         path.join(RESOLVERS_DIR, 'Mutation.setMatchdayJoining.js')
-      ),
-    });
-
-    const closeRegistrationFn = new NodejsFunction(this, 'CloseRegistrationFn', {
-      entry: path.join(__dirname, '../lambda/close-registration/index.ts'),
-      runtime: lambda.Runtime.NODEJS_22_X,
-      timeout: Duration.seconds(10),
-      environment: lambdaEnv,
-    });
-    matchdaysTable.grantReadWriteData(closeRegistrationFn);
-    matchdayParticipantsTable.grantReadWriteData(closeRegistrationFn);
-
-    const closeRegistrationDS = api.addLambdaDataSource(
-      'CloseRegistrationDataSource',
-      closeRegistrationFn
-    );
-    closeRegistrationDS.createResolver('MutationCloseRegistrationResolver', {
-      typeName: 'Mutation',
-      fieldName: 'closeRegistration',
-      runtime: JS_RUNTIME,
-      code: appsync.Code.fromAsset(
-        path.join(RESOLVERS_DIR, 'Mutation.closeRegistration.js')
       ),
     });
 

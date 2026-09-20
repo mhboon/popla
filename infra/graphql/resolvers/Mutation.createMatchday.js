@@ -1,23 +1,26 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-  const { seasonId, date, startTime, format, participantIds } = ctx.args;
+  const { seasonId, date, startTime, format, participantIds, selfRegistrationEnabled, maxParticipants } =
+    ctx.args;
 
-  if (participantIds.length === 0 || participantIds.length % 4 !== 0) {
-    util.error(
-      'participantIds must be a non-zero multiple of 4',
-      'ValidationError'
-    );
+  if (maxParticipants !== undefined && maxParticipants !== null && maxParticipants <= 0) {
+    util.error('maxParticipants must be a positive number', 'ValidationError');
   }
 
   const matchdayId = util.autoId();
   ctx.stash.matchdayId = matchdayId;
 
-  const matchdayItem = { seasonId, date, format, status: 'SETUP' };
+  const matchdayItem = { seasonId, date, format, status: 'SETUP', selfRegistrationEnabled };
   if (startTime !== undefined && startTime !== null) {
     matchdayItem.startTime = startTime;
   }
+  if (maxParticipants !== undefined && maxParticipants !== null) {
+    matchdayItem.maxParticipants = maxParticipants;
+    matchdayItem.joinedCount = participantIds.length;
+  }
 
+  const now = util.time.nowISO8601();
   const transactItems = [
     {
       table: 'PoplaMatchdays',
@@ -29,7 +32,7 @@ export function request(ctx) {
       table: 'PoplaMatchdayParticipants',
       operation: 'PutItem',
       key: util.dynamodb.toMapValues({ matchdayId, playerId }),
-      attributeValues: util.dynamodb.toMapValues({}),
+      attributeValues: util.dynamodb.toMapValues({ status: 'JOINING', updatedAt: now }),
     })),
   ];
 
@@ -47,5 +50,7 @@ export function response(ctx) {
     startTime: ctx.args.startTime ?? null,
     format: ctx.args.format,
     status: 'SETUP',
+    selfRegistrationEnabled: ctx.args.selfRegistrationEnabled,
+    maxParticipants: ctx.args.maxParticipants ?? null,
   };
 }

@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import {
   closeMatchday,
-  closeRegistration,
   createPlayer,
   generateRound,
   getMatchday,
@@ -17,6 +16,7 @@ import {
   setMatchdayJoining,
 } from '../lib/api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PlayerMultiSelect } from '../components/PlayerMultiSelect';
 import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
 import { formatMatchdayWhen } from '../lib/matchday';
@@ -102,8 +102,8 @@ export function MatchdayPage() {
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'ranking'>('matches');
 
-  // Registration-phase state (matchday.status === 'REGISTRATION') — see
-  // MatchdayRegistrationPanel below.
+  // Not-started-yet state (matchday.status === 'SETUP') — see
+  // MatchdaySetupPanel below.
   const [participants, setParticipants] = useState<MatchdayParticipant[]>([]);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [pickablePlayers, setPickablePlayers] = useState<Player[]>([]);
@@ -114,7 +114,7 @@ export function MatchdayPage() {
     try {
       const md = await getMatchday(idToken, matchdayId);
       setMatchday(md);
-      if (md?.status === 'REGISTRATION') {
+      if (md?.status === 'SETUP') {
         const [participantList, playerList, myPlayer, pickable] = await Promise.all([
           listMatchdayParticipants(idToken, matchdayId),
           listPlayerNames(idToken),
@@ -190,9 +190,9 @@ export function MatchdayPage() {
   if (loading) return <p>Loading…</p>;
   if (!matchday) return <p className="form-error">Matchday not found.</p>;
 
-  if (matchday.status === 'REGISTRATION') {
+  if (matchday.status === 'SETUP') {
     return (
-      <MatchdayRegistrationPanel
+      <MatchdaySetupPanel
         matchday={matchday}
         participants={participants}
         players={players}
@@ -202,6 +202,8 @@ export function MatchdayPage() {
         idToken={idToken}
         matchdayId={matchdayId!}
         error={error}
+        generating={generating}
+        onGenerateRound={handleGenerateRound}
         onSaved={refresh}
       />
     );
@@ -241,12 +243,6 @@ export function MatchdayPage() {
         <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
           {matchday.status.replace('_', ' ')}
         </span>
-        {isAdmin && matchday.status === 'SETUP' && (
-          <>
-            {' · '}
-            <Link to={`/matchdays/${matchday.matchdayId}/edit`}>Edit</Link>
-          </>
-        )}
       </p>
       {error && <p className="form-error">{error}</p>}
 
@@ -306,17 +302,6 @@ export function MatchdayPage() {
                 handleCloseMatchday();
               }}
             />
-          )}
-
-          {isAdmin && currentRound === 0 && isOpen && (
-            <button
-              type="button"
-              className="button-primary"
-              onClick={handleGenerateRound}
-              disabled={generating}
-            >
-              {generating ? 'Generating…' : 'Generate round 1'}
-            </button>
           )}
 
           {[...roundNumbers].reverse().map((round) => {
@@ -547,7 +532,20 @@ function MatchCard({
   );
 }
 
-function MatchdayRegistrationPanel({
+// e.g. "Sep 20, 14:32" — enough to see registration order at a glance
+// without a full timestamp; null (legacy rows with no updatedAt) just
+// renders nothing.
+function formatRegisteredAt(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function MatchdaySetupPanel({
   matchday,
   participants,
   players,
@@ -557,6 +555,8 @@ function MatchdayRegistrationPanel({
   idToken,
   matchdayId,
   error,
+  generating,
+  onGenerateRound,
   onSaved,
 }: {
   matchday: Matchday;
@@ -568,25 +568,44 @@ function MatchdayRegistrationPanel({
   idToken: string;
   matchdayId: string;
   error: string | null;
+  generating: boolean;
+  onGenerateRound: () => Promise<void>;
   onSaved: () => Promise<void>;
 }) {
   const [busyPlayerId, setBusyPlayerId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [pickedPlayerId, setPickedPlayerId] = useState('');
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerPhone, setNewPlayerPhone] = useState('');
   const [creatingPlayer, setCreatingPlayer] = useState(false);
-  const [confirmingClose, setConfirmingClose] = useState(false);
-  const [closingRegistration, setClosingRegistration] = useState(false);
+  const [savingRoster, setSavingRoster] = useState(false);
 
-  const joining = participants.filter((p) => p.status === 'JOINING');
-  const waitlisted = participants.filter((p) => p.status === 'WAITLISTED');
+  // Newest first — "who registered when." Waitlist stays oldest-first,
+  // i.e. queue order: that's the order setMatchdayJoining promotes from.
+  const joining = participants
+    .filter((p) => p.status === 'JOINING')
+    .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+  const waitlisted = participants
+    .filter((p) => p.status === 'WAITLISTED')
+    .sort((a, b) => (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''));
   const mine = participants.find((p) => p.playerId === myPlayerId);
-  const canClose = joining.length > 0 && joining.length % 4 === 0;
 
-  const alreadyOnRoster = new Set([...joining, ...waitlisted].map((p) => p.playerId));
-  const addablePlayers = pickablePlayers.filter((p) => !alreadyOnRoster.has(p.playerId));
+  // The admin's in-progress bulk roster edit — starts as (and resets to,
+  // whenever fresh data arrives) whoever's currently JOINING, and is
+  // only actually persisted on "Update roster".
+  const [selectedRoster, setSelectedRoster] = useState<Set<string>>(
+    () => new Set(joining.map((p) => p.playerId))
+  );
+  const [rosterPool, setRosterPool] = useState(pickablePlayers);
+  useEffect(() => {
+    setSelectedRoster(new Set(participants.filter((p) => p.status === 'JOINING').map((p) => p.playerId)));
+    setRosterPool(pickablePlayers);
+  }, [participants, pickablePlayers]);
+
+  const currentJoiningIds = new Set(joining.map((p) => p.playerId));
+  const rosterChanged =
+    selectedRoster.size !== currentJoiningIds.size ||
+    [...selectedRoster].some((id) => !currentJoiningIds.has(id));
 
   async function setJoining(playerId: string | undefined, isJoining: boolean) {
     setActionError(null);
@@ -601,13 +620,6 @@ function MatchdayRegistrationPanel({
     }
   }
 
-  async function handleAddExisting(event: FormEvent) {
-    event.preventDefault();
-    if (!pickedPlayerId) return;
-    await setJoining(pickedPlayerId, true);
-    setPickedPlayerId('');
-  }
-
   async function handleAddNewPlayer(event: FormEvent) {
     event.preventDefault();
     setActionError(null);
@@ -617,8 +629,8 @@ function MatchdayRegistrationPanel({
         displayName: newPlayerName,
         phone: newPlayerPhone || undefined,
       });
-      await setMatchdayJoining(idToken, { matchdayId, playerId: player.playerId, joining: true });
-      await onSaved();
+      setRosterPool((prev) => sortByName([...prev, player]));
+      setSelectedRoster((prev) => new Set(prev).add(player.playerId));
       setNewPlayerName('');
       setNewPlayerPhone('');
       setAddingPlayer(false);
@@ -629,16 +641,31 @@ function MatchdayRegistrationPanel({
     }
   }
 
-  async function handleCloseRegistration() {
+  function toggleRoster(playerId: string) {
+    setSelectedRoster((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }
+
+  async function handleUpdateRoster(event: FormEvent) {
+    event.preventDefault();
     setActionError(null);
-    setClosingRegistration(true);
+    setSavingRoster(true);
     try {
-      await closeRegistration(idToken, matchdayId);
+      const toAdd = [...selectedRoster].filter((id) => !currentJoiningIds.has(id));
+      const toRemove = [...currentJoiningIds].filter((id) => !selectedRoster.has(id));
+      await Promise.all([
+        ...toAdd.map((playerId) => setMatchdayJoining(idToken, { matchdayId, playerId, joining: true })),
+        ...toRemove.map((playerId) => setMatchdayJoining(idToken, { matchdayId, playerId, joining: false })),
+      ]);
       await onSaved();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to close registration');
+      setActionError(err instanceof Error ? err.message : 'Failed to update the roster');
     } finally {
-      setClosingRegistration(false);
+      setSavingRoster(false);
     }
   }
 
@@ -647,18 +674,28 @@ function MatchdayRegistrationPanel({
       <h1>Matchday — {formatMatchdayWhen(matchday)}</h1>
       <p>
         Tournament style: {matchday.format} ·{' '}
-        <span className="status-badge status-registration">Registration open</span>
+        <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
+          {matchday.status.replace('_', ' ')}
+        </span>
+        {' · '}
+        {matchday.selfRegistrationEnabled ? 'Self-registration open' : 'Admin-managed roster'}
+        {isAdmin && (
+          <>
+            {' · '}
+            <Link to={`/matchdays/${matchday.matchdayId}/edit`}>Edit</Link>
+          </>
+        )}
       </p>
       {error && <p className="form-error">{error}</p>}
       {actionError && <p className="form-error">{actionError}</p>}
 
       <p className="participant-count">
         <span className="scoreboard-chip">{joining.length}</span>
-        {` of ${matchday.maxParticipants} joined`}
+        {matchday.maxParticipants != null ? ` of ${matchday.maxParticipants} registered` : ' registered'}
         {waitlisted.length > 0 && ` · ${waitlisted.length} waitlisted`}
       </p>
 
-      {myPlayerId && (
+      {matchday.selfRegistrationEnabled && myPlayerId && (
         <div className="page-actions">
           {!mine || mine.status === 'DECLINED' ? (
             <button
@@ -667,126 +704,96 @@ function MatchdayRegistrationPanel({
               disabled={busyPlayerId === 'self'}
               onClick={() => setJoining(undefined, true)}
             >
-              {busyPlayerId === 'self' ? 'Joining…' : 'Join'}
+              {busyPlayerId === 'self' ? 'Registering…' : 'Register'}
             </button>
           ) : mine.status === 'WAITLISTED' ? (
             <>
-              <p>You're on the waitlist.</p>
+              <p>You're on the waiting list.</p>
               <button
                 type="button"
                 disabled={busyPlayerId === 'self'}
                 onClick={() => setJoining(undefined, false)}
               >
-                Leave waitlist
+                Leave waiting list
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              className="button-danger"
-              disabled={busyPlayerId === 'self'}
-              onClick={() => setJoining(undefined, false)}
-            >
-              {busyPlayerId === 'self' ? 'Leaving…' : 'Leave'}
-            </button>
+            <>
+              <p>You're registered.</p>
+              <button
+                type="button"
+                className="button-danger"
+                disabled={busyPlayerId === 'self'}
+                onClick={() => setJoining(undefined, false)}
+              >
+                {busyPlayerId === 'self' ? 'Unregistering…' : 'Unregister'}
+              </button>
+            </>
           )}
         </div>
       )}
 
-      <RosterList
-        list={joining}
-        title="Joining"
-        players={players}
-        isAdmin={isAdmin}
-        busyPlayerId={busyPlayerId}
-        onRemove={(playerId) => setJoining(playerId, false)}
-      />
-      <RosterList
-        list={waitlisted}
-        title="Waitlisted"
-        players={players}
-        isAdmin={isAdmin}
-        busyPlayerId={busyPlayerId}
-        onRemove={(playerId) => setJoining(playerId, false)}
-      />
+      <RosterList list={joining} title="Registered" players={players} />
+      <RosterList list={waitlisted} title="Waiting list" players={players} />
 
       {isAdmin && (
         <section>
-          <h2>Add participants</h2>
-          <form onSubmit={handleAddExisting} className="inline-form">
-            <label>
-              Existing participant
-              <select value={pickedPlayerId} onChange={(e) => setPickedPlayerId(e.target.value)}>
-                <option value="">Select…</option>
-                {addablePlayers.map((p) => (
-                  <option key={p.playerId} value={p.playerId}>
-                    {p.displayName}
-                    {p.isGuest ? ' (Guest)' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="submit" className="button-primary" disabled={!pickedPlayerId}>
-              Add
+          <h2>Finalize participants</h2>
+          <form onSubmit={handleUpdateRoster} className="matchday-form">
+            <PlayerMultiSelect players={rosterPool} selected={selectedRoster} onToggle={toggleRoster} />
+
+            {addingPlayer ? (
+              <form onSubmit={handleAddNewPlayer} className="inline-form">
+                <label>
+                  Name
+                  <input
+                    type="text"
+                    value={newPlayerName}
+                    onChange={(e) => setNewPlayerName(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Phone (optional — enables login)
+                  <input
+                    type="text"
+                    value={newPlayerPhone}
+                    onChange={(e) => setNewPlayerPhone(e.target.value)}
+                  />
+                </label>
+                <button type="submit" className="button-primary" disabled={creatingPlayer}>
+                  {creatingPlayer ? 'Adding…' : 'Add participant'}
+                </button>
+                <button type="button" onClick={() => setAddingPlayer(false)}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setAddingPlayer(true)}>
+                + New participant
+              </button>
+            )}
+
+            <button type="submit" className="button-primary" disabled={!rosterChanged || savingRoster}>
+              {savingRoster ? 'Updating…' : 'Update roster'}
             </button>
           </form>
-
-          {addingPlayer ? (
-            <form onSubmit={handleAddNewPlayer} className="inline-form">
-              <label>
-                Name
-                <input
-                  type="text"
-                  value={newPlayerName}
-                  onChange={(e) => setNewPlayerName(e.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Phone (optional — enables login)
-                <input
-                  type="text"
-                  value={newPlayerPhone}
-                  onChange={(e) => setNewPlayerPhone(e.target.value)}
-                />
-              </label>
-              <button type="submit" className="button-primary" disabled={creatingPlayer}>
-                {creatingPlayer ? 'Adding…' : 'Add participant'}
-              </button>
-              <button type="button" onClick={() => setAddingPlayer(false)}>
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <button type="button" onClick={() => setAddingPlayer(true)}>
-              + New participant
-            </button>
-          )}
 
           <div className="page-actions">
             <button
               type="button"
               className="button-primary"
-              disabled={!canClose || closingRegistration}
-              title={canClose ? undefined : 'Confirmed joiners must be a non-zero multiple of 4'}
-              onClick={() => setConfirmingClose(true)}
+              disabled={generating}
+              title={
+                joining.length > 0 && joining.length % 4 === 0
+                  ? undefined
+                  : 'Registered count must be a non-zero multiple of 4'
+              }
+              onClick={onGenerateRound}
             >
-              Close registration
+              {generating ? 'Starting…' : 'Generate round 1'}
             </button>
           </div>
-
-          <ConfirmDialog
-            open={confirmingClose}
-            title="Close registration?"
-            message="This locks in the current joiners as the matchday roster and moves it to setup. Waitlisted and declined participants are dropped."
-            confirmLabel="Close registration"
-            busy={closingRegistration}
-            onCancel={() => setConfirmingClose(false)}
-            onConfirm={() => {
-              setConfirmingClose(false);
-              handleCloseRegistration();
-            }}
-          />
         </section>
       )}
     </div>
@@ -797,16 +804,10 @@ function RosterList({
   list,
   title,
   players,
-  isAdmin,
-  busyPlayerId,
-  onRemove,
 }: {
   list: MatchdayParticipant[];
   title: string;
   players: Map<string, Player>;
-  isAdmin: boolean;
-  busyPlayerId: string | null;
-  onRemove: (playerId: string) => void;
 }) {
   return (
     <section>
@@ -819,21 +820,14 @@ function RosterList({
         <ul className="matchday-list">
           {list.map((p) => {
             const player = players.get(p.playerId);
+            const registeredAt = formatRegisteredAt(p.updatedAt);
             return (
               <li key={p.playerId}>
                 <span>
                   {player?.displayName ?? p.playerId}
                   {player?.isGuest && <span className="status-badge">Guest</span>}
                 </span>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    disabled={busyPlayerId === p.playerId}
-                    onClick={() => onRemove(p.playerId)}
-                  >
-                    Remove
-                  </button>
-                )}
+                {registeredAt && <span className="matchday-list-date">{registeredAt}</span>}
               </li>
             );
           })}

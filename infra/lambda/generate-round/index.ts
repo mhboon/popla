@@ -5,6 +5,7 @@ import {
   QueryCommand,
   BatchWriteCommand,
   UpdateCommand,
+  TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { courtsFromOrderedPlayers, randomOrder } from '../shared/pairing';
 
@@ -47,9 +48,25 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
       ExpressionAttributeValues: { ':matchdayId': matchdayId },
     })
   );
-  const participantIds = (participantsResult.Items ?? []).map(
-    (item) => item.playerId as string
+  const allParticipants = participantsResult.Items ?? [];
+  const joiningParticipants = allParticipants.filter((item) => (item.status ?? 'JOINING') === 'JOINING');
+  // Only ever non-empty at round 1 — WAITLISTED/DECLINED rows are
+  // cleaned up below the first time a round is generated, and nothing
+  // writes them after the matchday leaves SETUP.
+  const nonJoiningParticipants = allParticipants.filter(
+    (item) => (item.status ?? 'JOINING') !== 'JOINING'
   );
+
+  // This is the "close registration" moment, folded into starting play
+  // instead of being a separate step: the roster must be locked in as a
+  // non-zero multiple of 4 before round 1 can be generated.
+  if (round === 1 && (joiningParticipants.length === 0 || joiningParticipants.length % 4 !== 0)) {
+    throw new Error(
+      `Confirmed participant count must be a non-zero multiple of 4 to start (currently ${joiningParticipants.length})`
+    );
+  }
+
+  const participantIds = joiningParticipants.map((item) => item.playerId as string);
 
   const orderedPlayerIds =
     round === 1 || matchday.format === 'AMERICANO'
@@ -77,6 +94,22 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
       },
     })
   );
+
+  // Drop anyone who never made it off the waitlist (or explicitly
+  // opted out) — mirrors the old closeRegistration's cleanup, now
+  // folded into the moment play actually starts.
+  if (round === 1 && nonJoiningParticipants.length > 0) {
+    await ddb.send(
+      new TransactWriteCommand({
+        TransactItems: nonJoiningParticipants.map((item) => ({
+          Delete: {
+            TableName: PARTICIPANTS_TABLE,
+            Key: { matchdayId, playerId: item.playerId },
+          },
+        })),
+      })
+    );
+  }
 
   // Round 1 generated: the matchday is no longer editable (updateMatchday
   // only allows SETUP) and is now actually being played.

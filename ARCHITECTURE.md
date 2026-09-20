@@ -90,28 +90,33 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - Attributes: `seasonId`, `date`, `startTime` (optional time-of-day —
   kept as a separate attribute rather than folding into `date` so
   existing rows don't need migrating), `format` (`MEXICANO` |
-  `AMERICANO`), `status` (`REGISTRATION` | `SETUP` | `IN_PROGRESS` |
-  `CLOSED`), `maxParticipants`/`joinedCount` (both only set for a
-  matchday created via `openRegistration` — see SPEC.md's Registration;
-  null for the legacy direct-to-`SETUP` `createMatchday` path. Left in
-  place, not cleared, once registration closes — a historical "16 of 16"
-  record).
+  `AMERICANO`), `status` (`SETUP` | `IN_PROGRESS` | `CLOSED`),
+  `selfRegistrationEnabled` (whether a non-admin caller may target
+  themselves via `setMatchdayJoining` while `SETUP` — see SPEC.md's
+  Registration), `maxParticipants`/`joinedCount` (an optional cap +
+  its atomic counter, meaningful independent of
+  `selfRegistrationEnabled` — applies to *any* join, self- or
+  admin-added. Both absent when uncapped; `joinedCount` is
+  internal bookkeeping for `set-matchday-joining`'s capacity-check
+  transaction only, not exposed on the GraphQL type).
 - GSI `bySeasonId`: PK `seasonId`, SK `date` — list matchdays in a season,
   chronologically.
 
 ### `MatchdayParticipants`
 - PK: `matchdayId`, SK: `playerId`
 - The registered participant list for a matchday. Count must be a
-  multiple of 4 by the time the matchday is `SETUP`+.
+  non-zero multiple of 4 by the time `generateRound` first runs (see
+  Resolver Split below) — not enforced before that, so the roster can
+  sit at any size (including zero) while still `SETUP`.
 - Attributes `status` (`JOINING` | `WAITLISTED` | `DECLINED`) and
-  `updatedAt`, both only meaningful — and only ever written — while the
-  matchday is `REGISTRATION` (by the `setMatchdayJoining` Lambda). A row
-  with no `status` (every row written by `createMatchday`/
-  `updateMatchday`, i.e. every `SETUP`+ matchday) reads as `JOINING`
-  everywhere it's read (`generateRound`, `listMatchdayParticipantIds`,
-  `listMatchdayParticipants`'s response mapper) — this is why those
-  existing resolvers needed no changes for this feature. `updatedAt`
-  orders waitlist promotion FIFO.
+  `updatedAt`, both written by every writer now (`createMatchday`,
+  `setMatchdayJoining`) — a row with no `status` pre-dates this
+  entirely and reads as `JOINING` wherever it's read
+  (`generateRound`, `listMatchdayParticipantIds`,
+  `listMatchdayParticipants`'s response mapper). `updatedAt` orders
+  waitlist promotion FIFO, and separately powers "who registered
+  when" (`listMatchdayParticipants`, sorted client-side: newest-first
+  for `JOINING`, oldest-first — queue order — for `WAITLISTED`).
 
 ### `Matches`
 - PK: `matchdayId`, SK: `ROUND#<n>#COURT#<c>`
@@ -186,12 +191,12 @@ one.
 - `createSeason`, `closeSeason`, `reopenSeason` — simple state changes.
   Only one `ACTIVE` season at a time is a UI-enforced convention, not a
   data-layer constraint — see Open Questions.
-- `createMatchday` — includes participant list; JS resolver validates
-  participant count is a non-zero multiple of 4 and the season is `ACTIVE`
-- `openRegistration` — the open-registration alternative to
-  `createMatchday` (see SPEC.md): writes just the `Matchdays` item
-  (`status: REGISTRATION`, `maxParticipants`, `joinedCount: 0`), no
-  `MatchdayParticipants` rows yet — simple enough to stay native.
+- `createMatchday` — writes the `Matchdays` item (`status: SETUP`,
+  `selfRegistrationEnabled`, and `maxParticipants`/`joinedCount` if
+  capped) plus a `JOINING` row per (optional, any-length) initial
+  `participantId` — simple enough, still, to stay native even though it
+  no longer validates a multiple of 4 up front (see `generateRound`
+  below for where that check now lives).
 - `recordSetResult(matchId, team1Games, team2Games)` — JS resolver
   validates the score (`max(team1Games, team2Games) == 6`,
   `min(...) < 6`, i.e. no tiebreak, no win-by-2 requirement) directly in
@@ -204,9 +209,14 @@ one.
   the participant list, unranked; later rounds: the interim per-matchday
   standings computed from completed `Matches` so far — see note below),
   runs the Mexicano or Americano pairing algorithm per `SPEC.md`,
-  batch-writes the `Matches` items for that round. Also flips
-  `Matchdays.status` from `SETUP` to `IN_PROGRESS` on round 1, which is
-  what makes the matchday stop being editable.
+  batch-writes the `Matches` items for that round. On round 1 specifically,
+  this is also where "closing registration" now happens, folded into
+  starting play instead of being its own mutation: validates a non-zero
+  multiple of 4 `JOINING` participants (throwing otherwise, before any
+  writes), deletes any still-`WAITLISTED`/`DECLINED` rows, and flips
+  `Matchdays.status` from `SETUP` to `IN_PROGRESS` — which is what makes
+  the matchday stop being editable (both by admin roster changes and,
+  implicitly, self-registration).
 - `closeMatchday(matchdayId)` — aggregates all generated rounds' complete
   `Matches`, computes each player's setsWon/gamesWon/gamesLost/gameDiff/
   rank/seasonPoints/winnerPoint, writes `MatchdayResults`, and atomically
@@ -216,12 +226,15 @@ one.
   generating rounds and call this — there's no fixed round count.
   Winner-point eligibility (SPEC.md) needs the number of rounds played,
   taken as the highest `round` among that matchday's `Matches`.
-- `updateMatchday(matchdayId, date?, format?, participantIds?)` — only
-  allowed while `status == SETUP`. A participant-list change means
-  reading the current `MatchdayParticipants`, diffing against the new
-  list, and writing the add/remove set in one transaction alongside the
-  `Matchdays` update — real enough logic to warrant Lambda over a native
-  resolver, unlike `createMatchday`'s simpler "write everything" case.
+- `updateMatchday(matchdayId, date?, format?, selfRegistrationEnabled?,
+  maxParticipants?)` — only allowed while `status == SETUP`. No longer
+  touches the roster at all (that's `setMatchdayJoining`'s job
+  exclusively now, whether the caller is an admin or a self-registering
+  participant — see below); this is just the `Matchdays` item's own
+  attributes. Setting or raising/lowering `maxParticipants` re-queries
+  the current `JOINING` count to (re)seed `joinedCount` accurately and
+  reject lowering the cap below it — real enough to stay Lambda even
+  though the write itself is a plain `UpdateItem`.
 - `createPlayer`/`updatePlayer` — provision/deprovision the player's
   Cognito login (`AdminCreateUser`/`AdminDeleteUser`, keyed by phone —
   see Auth below) alongside the `Players` write, and (in `updatePlayer`)
@@ -229,27 +242,31 @@ one.
 - `promoteToAdmin`/`demoteFromAdmin(playerId)` — `AdminAddUserToGroup`/
   `AdminRemoveUserFromGroup` against the player's Cognito user;
   `demoteFromAdmin` rejects removing the caller's own admin status.
-- `setMatchdayJoining(matchdayId, playerId?, joining)` — not
+- `setMatchdayJoining(matchdayId, playerId?, joining)` — the one mutation
+  for *any* roster change now, admin-driven or self-service. Not
   `@aws_auth`-restricted (any authenticated user can call it for their
-  own RSVP), so the Lambda itself enforces that a non-admin caller
-  (`ctx.identity.groups`, same check `@aws_auth` uses internally) can
-  only ever target their own player, resolved via `Players.byPhone` on
-  `ctx.identity.username` — real enough identity logic, plus the
-  capacity/waitlist handling below, to need Lambda. Idempotent no-op if
-  already in the requested state (`JOINING`/`WAITLISTED` when joining,
-  absent/`DECLINED` when leaving). Joining: one transaction conditionally
-  `ADD`s `Matchdays.joinedCount` (`< maxParticipants`) alongside writing
-  the `JOINING` row; a failed condition (full) instead writes
-  `WAITLISTED`. Leaving a `JOINING` row: queries the matchday's other
+  own RSVP), so the Lambda itself enforces the caller: targeting another
+  player (`playerId` set) requires `ctx.identity.groups` to include
+  `Admins`; targeting self (omitted) additionally requires
+  `Matchdays.selfRegistrationEnabled` — the identity resolution itself
+  (via `Players.byPhone` on `ctx.identity.username`), plus the
+  capacity/waitlist handling below, is real enough logic to need Lambda.
+  Idempotent no-op if already in the requested state (`JOINING`/
+  `WAITLISTED` when joining, absent/`DECLINED` when leaving). Joining:
+  uncapped (`maxParticipants` unset) is a plain `PutItem`, no counter
+  touched; capped is one transaction conditionally `ADD`ing
+  `Matchdays.joinedCount` (`< maxParticipants`) alongside writing the
+  `JOINING` row, falling back to a plain `WAITLISTED` write on a failed
+  condition (full). Leaving a `JOINING` row: queries the matchday's other
   participants for the `WAITLISTED` one with the oldest `updatedAt` and,
   in one transaction, flips it to `JOINING` while the leaver becomes
   `DECLINED` (counter untouched, net zero); with nobody waitlisted, the
-  leaver becomes `DECLINED` and `joinedCount` decrements instead.
-- `closeRegistration(matchdayId)` — requires a non-zero-multiple-of-4
-  count of `JOINING` rows (same shape of check as `createMatchday`'s),
-  then one transaction flips `Matchdays.status` to `SETUP` and deletes
-  every non-`JOINING` `MatchdayParticipants` row — mirrors
-  `updateMatchday`'s add/remove transaction shape.
+  leaver becomes `DECLINED`, and (only if capped) `joinedCount`
+  decrements in the same transaction. The admin's "finalize participants"
+  bulk editor on `MatchdayPage` is purely a frontend convenience over
+  this same mutation — it diffs a multiselect against the current roster
+  and fires one call per changed player, so bulk edits behave identically
+  to (and can't diverge from) individual self-RSVP.
 - `listAdminPhoneNumbers` — one `ListUsersInGroup` call against the
   `Admins` group, used by the admin UI to know which players are
   currently admins without an AdminListGroupsForUser call per row.
@@ -357,9 +374,9 @@ incrementally.
   ordinary phone-based Cognito user**, not a separate account type
   (this was already true conceptually; login unification just extends
   it to the login mechanism itself). Admin mutations (`generateRound`,
-  `recordSetResult`, `closeMatchday`, `createMatchday`, `openRegistration`,
-  `closeRegistration`, `createSeason`, `closeSeason`, `createPlayer`,
-  `updatePlayer`, `promoteToAdmin`, `demoteFromAdmin`) are restricted with
+  `recordSetResult`, `closeMatchday`, `createMatchday`, `updateMatchday`,
+  `createSeason`, `closeSeason`, `createPlayer`, `updatePlayer`,
+  `promoteToAdmin`, `demoteFromAdmin`) are restricted with
   `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema —
   enforced by AppSync itself. `setMatchdayJoining` and `setMyPassword` are
   the two mutations deliberately *not* schema-restricted — the former

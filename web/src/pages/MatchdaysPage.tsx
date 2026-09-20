@@ -47,12 +47,9 @@ export function MatchdaysPage() {
       {isAdmin && (
         <div className="page-actions">
           {activeSeason ? (
-            <>
-              <Link to="/matchdays/register" className="button-primary">
-                Open registration
-              </Link>
-              <Link to="/matchdays/new">New matchday</Link>
-            </>
+            <Link to="/matchdays/new" className="button-primary">
+              New matchday
+            </Link>
           ) : (
             <p>
               No active season — <Link to="/seasons">start one</Link> first.
