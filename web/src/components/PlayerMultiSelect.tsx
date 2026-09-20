@@ -78,6 +78,7 @@ export function PlayerMultiSelect({
         {selectedPlayers.map((player) => (
           <span key={player.playerId} className="multiselect-pill">
             {player.displayName}
+            {player.isGuest && <span className="status-badge">Guest</span>}
             <button
               type="button"
               className="multiselect-pill-remove"
@@ -126,6 +127,7 @@ export function PlayerMultiSelect({
                 onMouseEnter={() => setHighlight(index)}
               >
                 {player.displayName}
+                {player.isGuest && <span className="status-badge">Guest</span>}
               </li>
             ))
           )}
