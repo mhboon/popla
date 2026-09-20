@@ -326,33 +326,40 @@ incrementally.
   AppSync — the frontend talks to Cognito directly via
   `amazon-cognito-identity-js`, same as any other Cognito auth flow.
 - **Password sign-in is `USER_SRP_AUTH`**, the User Pool Client's other
-  enabled auth flow alongside `custom`. Passwords are set/reset by
-  `setMyPassword` (`infra/lambda/set-my-password`) — a Lambda resolver
-  restricted to no group, callable by any authenticated user, that always
-  targets the *caller's own* Cognito `Username` (read off
-  `event.identity.username`, never an argument) via
-  `AdminSetUserPassword(..., Permanent: true)`. Reachability, not the
-  mutation itself, is what makes this safe: it's only callable with a
-  valid session, and the only way to get one without already having a
-  password is the OTP flow above — `setMyPassword` does no independent
-  verification of its own. Changing a *known* password (Account page) is
-  a separate, simpler path: Cognito's own `ChangePassword` API
-  (`web/src/lib/auth.ts`'s `changePassword`), called straight from the
-  frontend against the signed-in user's session — no Lambda, no
-  AppSync — since Cognito already verifies the old password itself.
-  `AdminSetUserPassword` with `Permanent: true`
-  also always clears `FORCE_CHANGE_PASSWORD`, so `newPasswordRequired`
-  (the challenge Cognito raises for an unconfirmed/temporary password) is
-  never actually reachable through the app: every Cognito user either has
-  no password yet (OTP-only) or a real one set this way. The one path
-  that bypasses this — a break-glass admin created directly via
-  `admin-create-user` (see README.md) — is left in
-  `FORCE_CHANGE_PASSWORD` with a Cognito-generated temporary password
-  nobody knows, which is indistinguishable from "wrong password" to a
-  client attempting `USER_SRP_AUTH`; that admin also just needs one OTP
-  sign-in + `setMyPassword` to get a real password. Cognito's default
-  password policy applies (min. 8 characters, upper/lowercase, a number,
-  a symbol) — not customized.
+  enabled auth flow alongside `custom`. Passwords are set two ways:
+  - Self-service, via `setMyPassword` (`infra/lambda/set-my-password`) —
+    a Lambda resolver restricted to no group, callable by any
+    authenticated user, that always targets the *caller's own* Cognito
+    `Username` (read off `event.identity.username`, never an argument)
+    via `AdminSetUserPassword(..., Permanent: true)`. Reachability, not
+    the mutation itself, is what makes this safe: it's only callable
+    with a valid session, and the only way to get one without already
+    having a password is the OTP flow above — `setMyPassword` does no
+    independent verification of its own.
+  - An admin resetting it manually, outside the app entirely: `aws
+    cognito-idp admin-set-user-password --username <phone> --password
+    <temp>` (deliberately *without* `--permanent`) from the AWS
+    console/CLI leaves the user in `FORCE_CHANGE_PASSWORD`. Signing in
+    with that temporary password makes `web/src/lib/auth.ts`'s `login`
+    resolve a `newPasswordRequired` result instead of a session —
+    `LoginPage`'s 'new-password-required' screen collects a replacement
+    and calls `completeNewPasswordChallenge`, which sets it as the
+    user's new real password and signs them in, in one step (no separate
+    `setMyPassword` call needed). This is also how a break-glass admin
+    created directly via `admin-create-user` (see README.md) gets going —
+    that leaves the same `FORCE_CHANGE_PASSWORD` state with a
+    Cognito-generated temporary password, so they land on the identical
+    screen on first sign-in. OTP remains available to them too (a bare
+    Cognito user needs no linked `Player` row for any of this — see
+    "Managing admin status" below), just no longer the only path.
+
+  Changing a *known* password (Account page) is a separate, simpler
+  path: Cognito's own `ChangePassword` API (`web/src/lib/auth.ts`'s
+  `changePassword`), called straight from the frontend against the
+  signed-in user's session — no Lambda, no AppSync — since Cognito
+  already verifies the old password itself. Cognito's default password
+  policy applies (min. 8 characters, upper/lowercase, a number, a
+  symbol) — not customized.
 - `Admins` group — **admin is purely group membership on an otherwise
   ordinary phone-based Cognito user**, not a separate account type
   (this was already true conceptually; login unification just extends
