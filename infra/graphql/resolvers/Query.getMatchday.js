@@ -7,6 +7,9 @@ export function request(ctx) {
   };
 }
 
+// See Query.listMatchdaysBySeason.js for why this default is needed —
+// same missing-attribute-on-legacy-rows issue.
 export function response(ctx) {
-  return ctx.result;
+  if (!ctx.result) return null;
+  return { ...ctx.result, selfRegistrationEnabled: ctx.result.selfRegistrationEnabled ?? false };
 }

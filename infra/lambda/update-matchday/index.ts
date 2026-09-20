@@ -117,7 +117,9 @@ export const handler = async (event: { arguments: UpdateMatchdayArgs }) => {
     date: date ?? matchday.date,
     startTime: startTime ?? matchday.startTime,
     format: format ?? matchday.format,
-    selfRegistrationEnabled: selfRegistrationEnabled ?? matchday.selfRegistrationEnabled,
+    // matchday.selfRegistrationEnabled is undefined for a matchday that
+    // pre-dates this field — default false (see Query.getMatchday.js).
+    selfRegistrationEnabled: selfRegistrationEnabled ?? matchday.selfRegistrationEnabled ?? false,
     maxParticipants: maxParticipants !== undefined ? maxParticipants : matchday.maxParticipants,
   };
 };
