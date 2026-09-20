@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import { getMyPlayer, listMatchdayParticipants, listMatchdaysBySeason, listSeasons } from '../lib/api';
 import { compareMatchdayWhenDesc, formatMatchdayWhen } from '../lib/matchday';
-import type { Matchday } from '../types/graphql';
+import type { Matchday, Season } from '../types/graphql';
 
 type MyStatus = 'JOINING' | 'WAITLISTED' | 'NOT_REGISTERED';
 
@@ -30,10 +30,12 @@ export function HomePage() {
   const isAdmin = user!.isAdmin;
 
   const [openMatchdays, setOpenMatchdays] = useState<OpenMatchday[]>([]);
+  const [activeSeason, setActiveSeason] = useState<Season | null>(null);
 
   useEffect(() => {
     async function load() {
       const [seasons, myPlayer] = await Promise.all([listSeasons(idToken), getMyPlayer(idToken)]);
+      setActiveSeason(seasons.find((s) => s.status === 'ACTIVE') ?? null);
 
       const bySeasonId = await Promise.all(
         seasons.map((s) => listMatchdaysBySeason(idToken, s.seasonId))
@@ -96,6 +98,11 @@ export function HomePage() {
           </Link>
         );
       })}
+      {activeSeason && (
+        <Link to={`/seasons/${activeSeason.seasonId}/ranking`} className="matchday-summary-card">
+          <p>{activeSeason.name} · Season ranking</p>
+        </Link>
+      )}
     </div>
   );
 }
