@@ -543,6 +543,35 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.matchday-summary-card {
+  display: block;
+  padding: var(--space-4) var(--space-5);
+  margin: 0 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: var(--color-ink);
+}
+
+.matchday-summary-card:hover {
+  background: var(--color-glass);
+}
+
+.matchday-summary-card p {
+  margin: 0 0 var(--space-1);
+}
+
+.matchday-summary-card p:last-child {
+  margin-bottom: 0;
+}
+
+.matchday-summary-status {
+  font-weight: 700;
+  color: var(--color-court);
+}
+
 /* ---- Participant picker ---- */
 
 .participant-count {
