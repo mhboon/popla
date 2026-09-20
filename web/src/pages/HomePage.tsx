@@ -100,17 +100,27 @@ export function HomePage() {
               myPlayerId &&
               (myStatus === 'JOINING' ? (
                 <>
-                  <span className="status-badge">Registered</span>
-                  <button type="button" disabled={busy} onClick={() => handleSetJoining(matchday.matchdayId, false)}>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    disabled={busy}
+                    onClick={() => handleSetJoining(matchday.matchdayId, false)}
+                  >
                     {busy ? 'Unregistering…' : 'Unregister'}
                   </button>
+                  <span className="status-badge">Registered</span>
                 </>
               ) : myStatus === 'WAITLISTED' ? (
                 <>
-                  <span className="status-badge">Waiting list</span>
-                  <button type="button" disabled={busy} onClick={() => handleSetJoining(matchday.matchdayId, false)}>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    disabled={busy}
+                    onClick={() => handleSetJoining(matchday.matchdayId, false)}
+                  >
                     {busy ? 'Leaving…' : 'Leave waiting list'}
                   </button>
+                  <span className="status-badge">Waiting list</span>
                 </>
               ) : (
                 <button

@@ -708,18 +708,18 @@ function MatchdaySetupPanel({
             </button>
           ) : mine.status === 'WAITLISTED' ? (
             <>
-              <p>You're on the waiting list.</p>
               <button
                 type="button"
+                className="button-danger"
                 disabled={busyPlayerId === 'self'}
                 onClick={() => setJoining(undefined, false)}
               >
-                Leave waiting list
+                {busyPlayerId === 'self' ? 'Leaving…' : 'Leave waiting list'}
               </button>
+              <p>You're on the waiting list.</p>
             </>
           ) : (
             <>
-              <p>You're registered.</p>
               <button
                 type="button"
                 className="button-danger"
@@ -728,6 +728,7 @@ function MatchdaySetupPanel({
               >
                 {busyPlayerId === 'self' ? 'Unregistering…' : 'Unregister'}
               </button>
+              <p>You're registered.</p>
             </>
           )}
         </div>
@@ -817,21 +818,31 @@ function RosterList({
       {list.length === 0 ? (
         <p>Nobody yet.</p>
       ) : (
-        <ul className="matchday-list">
-          {list.map((p) => {
-            const player = players.get(p.playerId);
-            const registeredAt = formatRegisteredAt(p.updatedAt);
-            return (
-              <li key={p.playerId}>
-                <span>
-                  {player?.displayName ?? p.playerId}
-                  {player?.isGuest && <span className="status-badge">Guest</span>}
-                </span>
-                {registeredAt && <span className="matchday-list-date">{registeredAt}</span>}
-              </li>
-            );
-          })}
-        </ul>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Participant</th>
+                <th>Registered at</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((p) => {
+                const player = players.get(p.playerId);
+                const registeredAt = formatRegisteredAt(p.updatedAt);
+                return (
+                  <tr key={p.playerId}>
+                    <td className="name">
+                      {player?.displayName ?? p.playerId}
+                      {player?.isGuest && <span className="status-badge">Guest</span>}
+                    </td>
+                    <td>{registeredAt ?? '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
