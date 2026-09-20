@@ -203,5 +203,7 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
   // 1 (matchday) + 32 (results) + 32 (standings) = 65, comfortably under.
   await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
 
-  return { ...matchday, status: 'CLOSED' };
+  // matchday.selfRegistrationEnabled is undefined for a matchday that
+  // pre-dates this field — default false (see Query.getMatchday.js).
+  return { ...matchday, status: 'CLOSED', selfRegistrationEnabled: matchday.selfRegistrationEnabled ?? false };
 };
