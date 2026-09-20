@@ -14,6 +14,7 @@ import {
   recordSetResult,
   setMatchdayJoining,
 } from '../lib/api';
+import { BackLink } from '../components/BackLink';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PlayerMultiSelect } from '../components/PlayerMultiSelect';
 import { ShareButton } from '../components/ShareButton';
@@ -235,6 +236,7 @@ export function MatchdayPage() {
 
   return (
     <div>
+      <BackLink />
       <h1>Matchday — {formatMatchdayWhen(matchday)}</h1>
       <p>
         Tournament style: {matchday.format} ·{' '}
@@ -685,6 +687,7 @@ function MatchdaySetupPanel({
 
   return (
     <div>
+      <BackLink />
       <h1>Matchday — {formatMatchdayWhen(matchday)}</h1>
       <p>
         Tournament style: {matchday.format} ·{' '}

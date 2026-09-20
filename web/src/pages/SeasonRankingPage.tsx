@@ -11,6 +11,8 @@ import {
   listSeasons,
   reopenSeason,
 } from '../lib/api';
+import { BackLink } from '../components/BackLink';
+import { ClickableRow } from '../components/ClickableRow';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
@@ -114,6 +116,7 @@ export function SeasonRankingPage() {
 
   return (
     <div>
+      <BackLink to="/seasons" label="Seasons" />
       <h1>{season.name}</h1>
       <p>
         Started {season.startDate} ·{' '}
@@ -213,16 +216,24 @@ export function SeasonRankingPage() {
                 </thead>
                 <tbody>
                   {ranked.map((standing) => (
-                    <tr key={standing.playerId}>
+                    <ClickableRow
+                      key={standing.playerId}
+                      to={`/seasons/${seasonId}/players/${standing.playerId}`}
+                    >
                       <td>
                         <span className="scoreboard-chip">{standing.rank}</span>
                       </td>
                       <td className={`name${standing.playerId === myPlayerId ? ' self' : ''}`}>
-                        {playerName(standing.playerId)}
+                        <Link
+                          to={`/seasons/${seasonId}/players/${standing.playerId}`}
+                          className="row-link"
+                        >
+                          {playerName(standing.playerId)}
+                        </Link>
                       </td>
                       <td className="num">{standing.totalPoints}</td>
                       <td className="num">{standing.matchdaysPlayed}</td>
-                    </tr>
+                    </ClickableRow>
                   ))}
                 </tbody>
               </table>
@@ -256,15 +267,23 @@ export function SeasonRankingPage() {
                 </thead>
                 <tbody>
                   {rankedByWinnerPoints.map((standing) => (
-                    <tr key={standing.playerId}>
+                    <ClickableRow
+                      key={standing.playerId}
+                      to={`/seasons/${seasonId}/players/${standing.playerId}`}
+                    >
                       <td>
                         <span className="scoreboard-chip">{standing.rank}</span>
                       </td>
                       <td className={`name${standing.playerId === myPlayerId ? ' self' : ''}`}>
-                        {playerName(standing.playerId)}
+                        <Link
+                          to={`/seasons/${seasonId}/players/${standing.playerId}`}
+                          className="row-link"
+                        >
+                          {playerName(standing.playerId)}
+                        </Link>
                       </td>
                       <td className="num">{standing.winnerPoints}</td>
-                    </tr>
+                    </ClickableRow>
                   ))}
                 </tbody>
               </table>
@@ -290,7 +309,7 @@ export function SeasonRankingPage() {
                 </thead>
                 <tbody>
                   {orderedMatchdays.map((matchday) => (
-                    <tr key={matchday.matchdayId} className="row-clickable">
+                    <ClickableRow key={matchday.matchdayId} to={`/matchdays/${matchday.matchdayId}`}>
                       <td>
                         <Link to={`/matchdays/${matchday.matchdayId}`} className="row-link">
                           {formatMatchdayWhen(matchday)}
@@ -302,7 +321,7 @@ export function SeasonRankingPage() {
                           {matchday.status.replace('_', ' ')}
                         </span>
                       </td>
-                    </tr>
+                    </ClickableRow>
                   ))}
                 </tbody>
               </table>

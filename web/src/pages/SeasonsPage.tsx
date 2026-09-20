@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
+import { ClickableRow } from '../components/ClickableRow';
 import { createSeason, listSeasons } from '../lib/api';
 import type { Season } from '../types/graphql';
 
@@ -100,7 +101,7 @@ export function SeasonsPage() {
               </thead>
               <tbody>
                 {seasons.map((season) => (
-                  <tr key={season.seasonId} className="row-clickable">
+                  <ClickableRow key={season.seasonId} to={`/seasons/${season.seasonId}/ranking`}>
                     <td>
                       <Link to={`/seasons/${season.seasonId}/ranking`} className="row-link">
                         {season.name}
@@ -112,7 +113,7 @@ export function SeasonsPage() {
                       </span>
                     </td>
                     <td>{season.startDate}</td>
-                  </tr>
+                  </ClickableRow>
                 ))}
               </tbody>
             </table>
