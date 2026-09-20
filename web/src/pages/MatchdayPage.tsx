@@ -7,7 +7,6 @@ import {
   generateRound,
   getMatchday,
   getMatchdayRanking,
-  getMyPlayer,
   listMatchdayParticipants,
   listMatches,
   listPlayerNames,
@@ -22,6 +21,7 @@ import { assignCompetitionRank } from '../lib/ranking';
 import { formatMatchdayWhen } from '../lib/matchday';
 import { formatMatchdayRankingShare, formatRoundShare } from '../lib/shareFormat';
 import { sortByName } from '../lib/sort';
+import { useMyPlayerId } from '../lib/useMyPlayerId';
 import type { Match, Matchday, MatchdayParticipant, MatchdayResult, Player } from '../types/graphql';
 
 // A set is played to 6 games with no tiebreak (SPEC.md) — 0-6 is the full
@@ -105,8 +105,8 @@ export function MatchdayPage() {
   // Not-started-yet state (matchday.status === 'SETUP') — see
   // MatchdaySetupPanel below.
   const [participants, setParticipants] = useState<MatchdayParticipant[]>([]);
-  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [pickablePlayers, setPickablePlayers] = useState<Player[]>([]);
+  const myPlayerId = useMyPlayerId(idToken);
 
   async function refresh() {
     if (!matchdayId) return;
@@ -115,15 +115,13 @@ export function MatchdayPage() {
       const md = await getMatchday(idToken, matchdayId);
       setMatchday(md);
       if (md?.status === 'SETUP') {
-        const [participantList, playerList, myPlayer, pickable] = await Promise.all([
+        const [participantList, playerList, pickable] = await Promise.all([
           listMatchdayParticipants(idToken, matchdayId),
           listPlayerNames(idToken),
-          getMyPlayer(idToken),
           isAdmin ? listPlayers(idToken) : Promise.resolve<Player[]>([]),
         ]);
         setParticipants(participantList);
         setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
-        setMyPlayerId(myPlayer?.playerId ?? null);
         setPickablePlayers(sortByName(pickable));
       } else {
         const [matchList, playerList] = await Promise.all([
@@ -324,6 +322,7 @@ export function MatchdayPage() {
                       key={`${match.round}-${match.court}`}
                       match={match}
                       playerName={playerName}
+                      myPlayerId={myPlayerId}
                       idToken={idToken}
                       matchdayId={matchdayId!}
                       onSaved={refresh}
@@ -364,7 +363,9 @@ export function MatchdayPage() {
                         <td>
                           <span className="scoreboard-chip">{result.rank}</span>
                         </td>
-                        <td className="name">{playerName(result.playerId)}</td>
+                        <td className={`name${result.playerId === myPlayerId ? ' self' : ''}`}>
+                          {playerName(result.playerId)}
+                        </td>
                         <td className="num">{result.gamesWon}</td>
                         <td className="num">{result.gameDiff}</td>
                         <td className="num">{result.setsWon}</td>
@@ -407,7 +408,9 @@ export function MatchdayPage() {
                         <td>
                           <span className="scoreboard-chip">{standing.rank}</span>
                         </td>
-                        <td className="name">{playerName(standing.playerId)}</td>
+                        <td className={`name${standing.playerId === myPlayerId ? ' self' : ''}`}>
+                          {playerName(standing.playerId)}
+                        </td>
                         <td className="num">{standing.gamesWon}</td>
                         <td className="num">{standing.gameDiff}</td>
                         <td className="num">{standing.setsWon}</td>
@@ -427,6 +430,7 @@ export function MatchdayPage() {
 function MatchCard({
   match,
   playerName,
+  myPlayerId,
   idToken,
   matchdayId,
   onSaved,
@@ -434,6 +438,7 @@ function MatchCard({
 }: {
   match: Match;
   playerName: (playerId: string) => string;
+  myPlayerId: string | null;
   idToken: string;
   matchdayId: string;
   onSaved: () => Promise<void>;
@@ -470,12 +475,21 @@ function MatchCard({
     }
   }
 
+  function renderTeam(playerIds: string[]) {
+    return playerIds.map((playerId, i) => (
+      <span key={playerId} className={playerId === myPlayerId ? 'self' : undefined}>
+        {i > 0 && ' & '}
+        {playerName(playerId)}
+      </span>
+    ));
+  }
+
   return (
     <div className="match-card">
       <p className="match-court">Court {match.court}</p>
-      <p>{match.team1PlayerIds.map(playerName).join(' & ')}</p>
+      <p>{renderTeam(match.team1PlayerIds)}</p>
       <p className="match-vs">vs</p>
-      <p>{match.team2PlayerIds.map(playerName).join(' & ')}</p>
+      <p>{renderTeam(match.team2PlayerIds)}</p>
 
       {editing ? (
         <form onSubmit={handleSave} className="score-form">
@@ -734,8 +748,8 @@ function MatchdaySetupPanel({
         </div>
       )}
 
-      <RosterList list={joining} title="Registered" players={players} />
-      <RosterList list={waitlisted} title="Waiting list" players={players} />
+      <RosterList list={joining} title="Registered" players={players} myPlayerId={myPlayerId} />
+      <RosterList list={waitlisted} title="Waiting list" players={players} myPlayerId={myPlayerId} />
 
       {isAdmin && (
         <section>
@@ -805,10 +819,12 @@ function RosterList({
   list,
   title,
   players,
+  myPlayerId,
 }: {
   list: MatchdayParticipant[];
   title: string;
   players: Map<string, Player>;
+  myPlayerId: string | null;
 }) {
   return (
     <section>
@@ -819,7 +835,7 @@ function RosterList({
         <p>Nobody yet.</p>
       ) : (
         <div className="table-scroll">
-          <table className="data-table">
+          <table className="data-table roster-table">
             <thead>
               <tr>
                 <th>Participant</th>
@@ -832,7 +848,7 @@ function RosterList({
                 const registeredAt = formatRegisteredAt(p.updatedAt);
                 return (
                   <tr key={p.playerId}>
-                    <td className="name">
+                    <td className={`name${p.playerId === myPlayerId ? ' self' : ''}`}>
                       {player?.displayName ?? p.playerId}
                       {player?.isGuest && <span className="status-badge">Guest</span>}
                     </td>

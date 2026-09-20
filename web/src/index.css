@@ -419,6 +419,31 @@ button:disabled {
   max-width: 11rem;
 }
 
+/* The logged-in caller's own row/name, wherever a list of participants
+   shows one — rosters, matches, rankings. People look for themselves
+   first. */
+.self {
+  font-weight: 700;
+}
+
+/* Registered/waiting-list tables (MatchdayPage) are two separate
+   <table> elements stacked vertically — fixed layout with matching
+   column widths keeps "Registered at" aligned between them regardless
+   of how long either table's names are. */
+.roster-table {
+  table-layout: fixed;
+}
+
+.roster-table th:first-child,
+.roster-table td:first-child {
+  width: 70%;
+}
+
+.roster-table th:last-child,
+.roster-table td:last-child {
+  width: 30%;
+}
+
 /*
  * Whole-row-clickable pattern: a real <Link>/<a> (.row-link) inside one
  * cell, stretched via an absolutely-positioned ::after to fill the

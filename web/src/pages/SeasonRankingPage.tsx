@@ -16,6 +16,7 @@ import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
 import { compareMatchdayWhenDesc, formatMatchdayWhen } from '../lib/matchday';
 import { formatSeasonRankingShare, formatSeasonWinnerRankingShare } from '../lib/shareFormat';
+import { useMyPlayerId } from '../lib/useMyPlayerId';
 import type { Matchday, Player, Season, SeasonStanding } from '../types/graphql';
 
 export function SeasonRankingPage() {
@@ -23,6 +24,7 @@ export function SeasonRankingPage() {
   const { user } = useAuth();
   const idToken = user!.idToken;
   const isAdmin = user!.isAdmin;
+  const myPlayerId = useMyPlayerId(idToken);
 
   const [season, setSeason] = useState<Season | null>(null);
   const [hasOtherActiveSeason, setHasOtherActiveSeason] = useState(false);
@@ -215,7 +217,9 @@ export function SeasonRankingPage() {
                       <td>
                         <span className="scoreboard-chip">{standing.rank}</span>
                       </td>
-                      <td className="name">{playerName(standing.playerId)}</td>
+                      <td className={`name${standing.playerId === myPlayerId ? ' self' : ''}`}>
+                        {playerName(standing.playerId)}
+                      </td>
                       <td className="num">{standing.totalPoints}</td>
                       <td className="num">{standing.matchdaysPlayed}</td>
                     </tr>
@@ -256,7 +260,9 @@ export function SeasonRankingPage() {
                       <td>
                         <span className="scoreboard-chip">{standing.rank}</span>
                       </td>
-                      <td className="name">{playerName(standing.playerId)}</td>
+                      <td className={`name${standing.playerId === myPlayerId ? ' self' : ''}`}>
+                        {playerName(standing.playerId)}
+                      </td>
                       <td className="num">{standing.winnerPoints}</td>
                     </tr>
                   ))}
