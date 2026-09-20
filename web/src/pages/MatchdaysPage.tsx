@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
+import { ClickableRow } from '../components/ClickableRow';
 import { listMatchdaysBySeason, listSeasons } from '../lib/api';
 import { compareMatchdayWhenDesc, formatMatchdayWhen } from '../lib/matchday';
 import type { Matchday, Season } from '../types/graphql';
@@ -96,7 +97,7 @@ export function MatchdaysPage() {
               </thead>
               <tbody>
                 {history.map((matchday) => (
-                  <tr key={matchday.matchdayId} className="row-clickable">
+                  <ClickableRow key={matchday.matchdayId} to={`/matchdays/${matchday.matchdayId}`}>
                     <td>
                       <Link to={`/matchdays/${matchday.matchdayId}`} className="row-link">
                         {seasonName(matchday.seasonId)}
@@ -104,7 +105,7 @@ export function MatchdaysPage() {
                     </td>
                     <td>{formatMatchdayWhen(matchday)}</td>
                     <td>{matchday.format}</td>
-                  </tr>
+                  </ClickableRow>
                 ))}
               </tbody>
             </table>

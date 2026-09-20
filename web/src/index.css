@@ -445,15 +445,16 @@ button:disabled {
 }
 
 /*
- * Whole-row-clickable pattern: a real <Link>/<a> (.row-link) inside one
- * cell, stretched via an absolutely-positioned ::after to fill the
- * entire row. Keeps it a real link (keyboard focus, right-click/cmd-click
- * to open in a new tab) instead of a div with an onClick handler. The
- * ::after's containing block is the nearest *positioned* ancestor, which
- * skips the (unpositioned) <td> and lands on tr.row-clickable.
+ * Whole-row-clickable pattern: the <tr> itself navigates on click (see
+ * components/ClickableRow.tsx) — a real <Link>/<a> (.row-link) inside
+ * one cell still handles keyboard focus and right-click/cmd-click to
+ * open in a new tab. (Previously an absolutely-positioned ::after
+ * stretched that link across the row via `position: relative` on the
+ * <tr>, but that doesn't reliably size/clip to the row's actual
+ * rendered bounds in every browser — notably Safari/iOS — and could
+ * capture clicks meant for a different row entirely.)
  */
 .row-clickable {
-  position: relative;
   cursor: pointer;
 }
 
@@ -463,10 +464,21 @@ button:disabled {
   font-weight: inherit;
 }
 
-.row-link::after {
-  content: '';
-  position: absolute;
-  inset: 0;
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-court);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.back-link:hover {
+  text-decoration: underline;
 }
 
 /* ---- Scoreboard chip: the signature element. Court-deep + mono

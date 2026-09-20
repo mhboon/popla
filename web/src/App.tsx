@@ -9,6 +9,7 @@ import { AccountPage } from './pages/AccountPage';
 import { ParticipantsPage } from './pages/ParticipantsPage';
 import { SeasonsPage } from './pages/SeasonsPage';
 import { SeasonRankingPage } from './pages/SeasonRankingPage';
+import { PlayerSeasonResultsPage } from './pages/PlayerSeasonResultsPage';
 import { MatchdaysPage } from './pages/MatchdaysPage';
 import { MatchdaySetupPage } from './pages/MatchdaySetupPage';
 import { MatchdayPage } from './pages/MatchdayPage';
@@ -70,6 +71,14 @@ export function App() {
             element={
               <ProtectedRoute requireAdmin={false}>
                 <SeasonRankingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/seasons/:seasonId/players/:playerId"
+            element={
+              <ProtectedRoute requireAdmin={false}>
+                <PlayerSeasonResultsPage />
               </ProtectedRoute>
             }
           />
