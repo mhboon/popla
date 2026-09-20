@@ -169,9 +169,19 @@ a {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Overrides the generic `button` element rule's white background/border
+   below — without this, the icon (near-white, set via `color` for the
+   SVG's `stroke="currentColor"`) was rendering on a near-white button,
+   virtually invisible against the header. */
 .menu-toggle {
   display: none;
   color: #eef3f2;
+  background: var(--color-court-deep);
+  border-color: transparent;
+}
+
+.menu-toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .app-main {
