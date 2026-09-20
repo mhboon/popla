@@ -44,26 +44,52 @@ export function requestOtp(phone: string): Promise<OtpResult> {
   });
 }
 
+export type LoginResult =
+  | { type: 'success'; session: CognitoUserSession }
+  // Reachable when an admin issues a non-permanent temporary password via
+  // `aws cognito-idp admin-set-user-password` (no `--permanent`) from the
+  // AWS console/CLI — a manual reset path for when OTP delivery isn't an
+  // option. Cognito puts the user in FORCE_CHANGE_PASSWORD and rejects
+  // the temp password for anything but completing this challenge; doing
+  // so both signs the user in and sets it as their new real password —
+  // no separate setMyPassword call needed. See ARCHITECTURE.md's Auth
+  // section.
+  | { type: 'newPasswordRequired'; completeNewPassword: (newPassword: string) => Promise<CognitoUserSession> };
+
 /**
  * Username+password login (USER_SRP_AUTH) — the default, faster-return-
- * visit path once a password has been set via setMyPassword. OTP
- * (requestOtp above) remains the only way to actually prove phone
- * ownership; every Cognito user in this pool that has a real password at
- * all got it via setMyPassword's AdminSetUserPassword(..., Permanent:
- * true), which never leaves FORCE_CHANGE_PASSWORD behind — so
- * newPasswordRequired is not a reachable state here, only defended
- * against so a mismatched account state fails loudly instead of hanging.
- * See ARCHITECTURE.md's Auth section.
+ * visit path once a password has been set. Two ways to get one: OTP sign-
+ * in + setMyPassword (self-service), or an admin issuing a temporary
+ * password via the AWS console/CLI (manual reset) — the latter surfaces
+ * as the 'newPasswordRequired' branch below. OTP (requestOtp above)
+ * remains the only way to actually prove phone ownership in the
+ * self-service case.
  */
-export function login(username: string, password: string): Promise<CognitoUserSession> {
+export function login(username: string, password: string): Promise<LoginResult> {
   return new Promise((resolve, reject) => {
     const cognitoUser = new CognitoUser({ Username: username, Pool: userPool });
     const authDetails = new AuthenticationDetails({ Username: username, Password: password });
     cognitoUser.authenticateUser(authDetails, {
-      onSuccess: resolve,
+      onSuccess: (session) => resolve({ type: 'success', session }),
       onFailure: reject,
-      newPasswordRequired: () =>
-        reject(new Error('This account needs a password set — sign in with a code first.')),
+      newPasswordRequired: (userAttributes) => {
+        // Cognito includes read-only attributes (e.g. phone_number_verified)
+        // in userAttributes that completeNewPasswordChallenge then rejects
+        // if echoed back — strip them rather than trying to keep an
+        // allowlist in sync with the pool's schema.
+        delete userAttributes.email_verified;
+        delete userAttributes.phone_number_verified;
+        resolve({
+          type: 'newPasswordRequired',
+          completeNewPassword: (newPassword) =>
+            new Promise((resolveChallenge, rejectChallenge) => {
+              cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
+                onSuccess: resolveChallenge,
+                onFailure: rejectChallenge,
+              });
+            }),
+        });
+      },
     });
   });
 }

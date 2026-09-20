@@ -135,3 +135,23 @@ sets no password — a manually-created user has none until they sign in
 once by SMS code and set one (in-app, via "Set a password"); until then
 they can only sign in by code, same as any freshly-registered
 participant.
+
+## Resetting a password
+
+Anyone can always fall back to "Sign in with a code" on the login page —
+that's still the only way to actually prove phone ownership. But if
+someone specifically wants their password reset (lost it, suspicious
+activity, etc.), an admin can do it from outside the app:
+
+```bash
+aws cognito-idp admin-set-user-password --user-pool-id <UserPoolId> \
+  --username <their phone, no +> --password <a temporary password>
+```
+
+Deliberately *without* `--permanent` — that leaves the user in
+`FORCE_CHANGE_PASSWORD`. The next time they sign in with that temporary
+password (via "Sign in", not "Sign in with a code"), the app takes them
+straight to a "Set a new password" screen instead of logging them
+in — choosing one there both replaces it and signs them in, in one step.
+Same Cognito password policy as everywhere else (min. 8 characters,
+upper/lowercase, a number, a symbol).

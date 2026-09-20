@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { CognitoUserSession } from 'amazon-cognito-identity-js';
 import {
   login,
   requestOtp,
@@ -19,7 +20,14 @@ import { useAuth } from '../lib/useAuth';
 // impatient double-tap from firing off extra codes.
 const RESEND_COOLDOWN_S = 30;
 
-type Mode = 'password' | 'otp-request' | 'otp-verify' | 'set-password';
+// Longer-form than PHONE_HINT (which doubles as a compact `title`
+// tooltip elsewhere) — this is the first phone format a new participant
+// ever sees, so it spells out the "drop the leading 0, add the country
+// code" step explicitly rather than just naming the target format.
+const PHONE_FORMAT_HELP =
+  "International format, no leading 00 or +. E.g. if your NL number is 0612345678, your login is 31612345678.";
+
+type Mode = 'password' | 'otp-request' | 'otp-verify' | 'set-password' | 'new-password-required';
 
 function describeAuthError(err: unknown, fallback: string): string {
   const code = (err as { code?: string } | undefined)?.code;
@@ -46,6 +54,8 @@ export function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitCode, setSubmitCode] =
     useState<((code: string) => Promise<SubmitCodeResult>) | null>(null);
+  const [completeNewPassword, setCompleteNewPassword] =
+    useState<((newPassword: string) => Promise<CognitoUserSession>) | null>(null);
   // The just-authenticated (via OTP) user, held here rather than read back
   // from context — setUser's state update isn't guaranteed to have landed
   // by the time the set-password screen needs a token to call the API.
@@ -86,11 +96,36 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const session = await login(phone, password);
-      setUser(toAuthenticatedUser(session));
+      const result = await login(phone, password);
+      if (result.type === 'newPasswordRequired') {
+        setCompleteNewPassword(() => result.completeNewPassword);
+        setMode('new-password-required');
+        return;
+      }
+      setUser(toAuthenticatedUser(result.session));
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Incorrect phone number or password.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCompleteNewPassword(event: FormEvent) {
+    event.preventDefault();
+    if (!completeNewPassword) return;
+    if (newPassword !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const session = await completeNewPassword(newPassword);
+      setUser(toAuthenticatedUser(session));
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not set password');
     } finally {
       setSubmitting(false);
     }
@@ -209,6 +244,42 @@ export function LoginPage() {
     );
   }
 
+  if (mode === 'new-password-required') {
+    return (
+      <form onSubmit={handleCompleteNewPassword} className="auth-form">
+        <h1>Set a new password</h1>
+        <p>An admin issued you a temporary password — choose a new one to finish signing in.</p>
+        <label>
+          New password
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+          />
+        </label>
+        <label>
+          Confirm password
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+          />
+        </label>
+        <p>{PASSWORD_HINT}</p>
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" className="button-primary" disabled={submitting}>
+          {submitting ? 'Setting password…' : 'Set password and sign in'}
+        </button>
+      </form>
+    );
+  }
+
   if (mode === 'otp-verify') {
     return (
       <form onSubmit={handleVerifyCode} className="auth-form">
@@ -266,7 +337,7 @@ export function LoginPage() {
             required
           />
         </label>
-        <p>{PHONE_HINT}</p>
+        <p>{PHONE_FORMAT_HELP}</p>
         {error && <p className="form-error">{error}</p>}
         <button type="submit" className="button-primary" disabled={submitting}>
           {submitting ? 'Sending code…' : 'Send code'}
@@ -294,6 +365,7 @@ export function LoginPage() {
           required
         />
       </label>
+      <p>{PHONE_FORMAT_HELP}</p>
       <label>
         Password
         <input
