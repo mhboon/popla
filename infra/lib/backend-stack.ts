@@ -546,6 +546,33 @@ export class PoplaBackendStack extends Stack {
       code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.setMyPassword.js')),
     });
 
+    const resetParticipantPasswordFn = new NodejsFunction(this, 'ResetParticipantPasswordFn', {
+      entry: path.join(__dirname, '../lambda/reset-participant-password/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: playerAuthEnv,
+    });
+    playersTable.grantReadData(resetParticipantPasswordFn);
+    resetParticipantPasswordFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cognito-idp:AdminSetUserPassword'],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const resetParticipantPasswordDS = api.addLambdaDataSource(
+      'ResetParticipantPasswordDataSource',
+      resetParticipantPasswordFn
+    );
+    resetParticipantPasswordDS.createResolver('MutationResetParticipantPasswordResolver', {
+      typeName: 'Mutation',
+      fieldName: 'resetParticipantPassword',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.resetParticipantPassword.js')
+      ),
+    });
+
     const listAdminsFn = new NodejsFunction(this, 'ListAdminsFn', {
       entry: path.join(__dirname, '../lambda/list-admins/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,

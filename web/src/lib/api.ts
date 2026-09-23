@@ -113,6 +113,14 @@ export function demoteFromAdmin(idToken: string, playerId: string) {
   ).then((d) => d.demoteFromAdmin);
 }
 
+export function resetParticipantPassword(idToken: string, playerId: string) {
+  return graphqlRequest<{ resetParticipantPassword: string }>(
+    idToken,
+    `mutation($playerId: ID!) { resetParticipantPassword(playerId: $playerId) }`,
+    { playerId }
+  ).then((d) => d.resetParticipantPassword);
+}
+
 export function listSeasons(idToken: string) {
   return graphqlRequest<{ listSeasons: Season[] }>(
     idToken,

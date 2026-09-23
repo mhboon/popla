@@ -1,5 +1,6 @@
 import { formatMatchdayWhen } from './matchday';
-import type { Match, Matchday, Season, SeasonStanding } from '../types/graphql';
+import { PHONE_HINT } from './phone';
+import type { Match, Matchday, Player, Season, SeasonStanding } from '../types/graphql';
 
 interface RankedDayStanding {
   rank: number;
@@ -52,6 +53,15 @@ export function formatSeasonWinnerRankingShare(
     (s) => `${s.rank}. ${playerName(s.playerId)} — ${s.winnerPoints} 🏆`
   );
   return [header, '', ...lines].join('\n');
+}
+
+export function formatPasswordResetShare(player: Player, temporaryPassword: string): string {
+  return [
+    `This is your login for Popla Cup at ${window.location.origin}.`,
+    '',
+    `Your login is your phone number (${PHONE_HINT})`,
+    `Your initial password (change it upon login) is: ${temporaryPassword}`,
+  ].join('\n');
 }
 
 export function formatRoundShare(
