@@ -14,4 +14,7 @@ export const config = {
     'VITE_USER_POOL_CLIENT_ID',
     import.meta.env.VITE_USER_POOL_CLIENT_ID
   ),
+  // Off by default (unset or anything but 'true') — mirrors the backend's
+  // FEATURE_ADMIN_PASSWORD_RESET flag in infra/lib/backend-stack.ts.
+  featureAdminPasswordReset: import.meta.env.VITE_FEATURE_ADMIN_PASSWORD_RESET === 'true',
 };

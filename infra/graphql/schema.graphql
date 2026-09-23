@@ -248,6 +248,16 @@ type Mutation {
   # after an OTP sign-in, which is what actually proves phone ownership;
   # see ARCHITECTURE.md's Auth section.
   setMyPassword(newPassword: String!): Boolean!
+
+  # Issues a temporary password for a participant's existing Cognito user
+  # (requires a non-null cognitoSub, like promoteToAdmin) and returns it
+  # in plaintext for the admin to share with them directly — no SMS/email
+  # sending involved. Puts the user in FORCE_CHANGE_PASSWORD, same state
+  # the existing newPasswordRequired sign-in flow already handles. Behind
+  # a feature flag, disabled by default — see ARCHITECTURE.md's Auth
+  # section.
+  resetParticipantPassword(playerId: ID!): String!
+    @aws_auth(cognito_groups: ["Admins"])
 }
 
 schema {

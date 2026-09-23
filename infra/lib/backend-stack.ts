@@ -14,8 +14,14 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 const RESOLVERS_DIR = path.join(__dirname, '../graphql/resolvers');
 const JS_RUNTIME = appsync.FunctionRuntime.JS_1_0_0;
 
+export interface PoplaBackendStackProps extends StackProps {
+  // Off by default — see ARCHITECTURE.md's Auth section for why
+  // participant password reset is flagged rather than always on.
+  enableAdminPasswordReset?: boolean;
+}
+
 export class PoplaBackendStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props?: PoplaBackendStackProps) {
     super(scope, id, props);
 
     // ---- DynamoDB tables ----
@@ -544,6 +550,36 @@ export class PoplaBackendStack extends Stack {
       fieldName: 'setMyPassword',
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.setMyPassword.js')),
+    });
+
+    const resetParticipantPasswordFn = new NodejsFunction(this, 'ResetParticipantPasswordFn', {
+      entry: path.join(__dirname, '../lambda/reset-participant-password/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: {
+        ...playerAuthEnv,
+        FEATURE_ADMIN_PASSWORD_RESET: String(!!props?.enableAdminPasswordReset),
+      },
+    });
+    playersTable.grantReadData(resetParticipantPasswordFn);
+    resetParticipantPasswordFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['cognito-idp:AdminSetUserPassword'],
+        resources: [userPool.userPoolArn],
+      })
+    );
+
+    const resetParticipantPasswordDS = api.addLambdaDataSource(
+      'ResetParticipantPasswordDataSource',
+      resetParticipantPasswordFn
+    );
+    resetParticipantPasswordDS.createResolver('MutationResetParticipantPasswordResolver', {
+      typeName: 'Mutation',
+      fieldName: 'resetParticipantPassword',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.resetParticipantPassword.js')
+      ),
     });
 
     const listAdminsFn = new NodejsFunction(this, 'ListAdminsFn', {
