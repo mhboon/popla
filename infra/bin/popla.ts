@@ -13,11 +13,7 @@ const app = new cdk.App();
 // AWS account number out of the source entirely, which matters because
 // this repo is public.
 
-// Off by default; enable with `cdk deploy -c enableAdminPasswordReset=true`
-// (or a cdk.json context override) — see backend-stack.ts.
-const enableAdminPasswordReset = app.node.tryGetContext('enableAdminPasswordReset') === 'true';
-
-new PoplaBackendStack(app, 'PoplaBackendStack', { enableAdminPasswordReset });
+new PoplaBackendStack(app, 'PoplaBackendStack');
 new PoplaWebStack(app, 'PoplaWebStack');
 
 // One-time manual bootstrap only — never part of the CI deploy. See

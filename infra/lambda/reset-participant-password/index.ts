@@ -17,13 +17,6 @@ interface ResetParticipantPasswordArgs {
 }
 
 export const handler = async (event: { arguments: ResetParticipantPasswordArgs }) => {
-  // Defense in depth: refuses even if this mutation is invoked directly
-  // while the feature is off, not just hidden from the UI — see
-  // ARCHITECTURE.md's Auth section.
-  if (process.env.FEATURE_ADMIN_PASSWORD_RESET !== 'true') {
-    throw new Error('Admin password reset is not enabled.');
-  }
-
   const { playerId } = event.arguments;
 
   const { Item: player } = await ddb.send(

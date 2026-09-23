@@ -14,7 +14,9 @@ export const config = {
     'VITE_USER_POOL_CLIENT_ID',
     import.meta.env.VITE_USER_POOL_CLIENT_ID
   ),
-  // Off by default (unset or anything but 'true') — mirrors the backend's
-  // FEATURE_ADMIN_PASSWORD_RESET flag in infra/lib/backend-stack.ts.
-  featureAdminPasswordReset: import.meta.env.VITE_FEATURE_ADMIN_PASSWORD_RESET === 'true',
+  // Off by default (unset or anything but 'true') — hides SMS-OTP sign-in
+  // from LoginPage in favor of admin-issued temporary passwords. The
+  // CUSTOM_AUTH Lambda triggers stay deployed either way; this only
+  // controls whether the UI links to them.
+  featureSmsOtp: import.meta.env.VITE_FEATURE_SMS_OTP === 'true',
 };

@@ -9,6 +9,7 @@ import {
   type SubmitCodeResult,
 } from '../lib/auth';
 import { setMyPassword } from '../lib/api';
+import { config } from '../lib/config';
 import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
 import { PASSWORD_HINT } from '../lib/password';
 import { useAuth } from '../lib/useAuth';
@@ -380,9 +381,11 @@ export function LoginPage() {
       <button type="submit" className="button-primary" disabled={submitting}>
         {submitting ? 'Signing in…' : 'Sign in'}
       </button>
-      <button type="button" onClick={goToOtpRequest}>
-        Forgot your password?
-      </button>
+      {config.featureSmsOtp && (
+        <button type="button" onClick={goToOtpRequest}>
+          Forgot your password?
+        </button>
+      )}
     </form>
   );
 }

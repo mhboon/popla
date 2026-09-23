@@ -9,7 +9,6 @@ import {
   resetParticipantPassword,
   updatePlayer,
 } from '../lib/api';
-import { config } from '../lib/config';
 import { sortByName } from '../lib/sort';
 import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
 import { ShareButton } from '../components/ShareButton';
@@ -286,7 +285,7 @@ export function ParticipantsPage() {
                             <button type="button" onClick={() => startEdit(player, isRowAdmin)}>
                               Edit
                             </button>{' '}
-                            {config.featureAdminPasswordReset && !player.isGuest && (
+                            {!player.isGuest && (
                               <button
                                 type="button"
                                 onClick={() => handleResetPassword(player.playerId)}

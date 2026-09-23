@@ -14,14 +14,8 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 const RESOLVERS_DIR = path.join(__dirname, '../graphql/resolvers');
 const JS_RUNTIME = appsync.FunctionRuntime.JS_1_0_0;
 
-export interface PoplaBackendStackProps extends StackProps {
-  // Off by default — see ARCHITECTURE.md's Auth section for why
-  // participant password reset is flagged rather than always on.
-  enableAdminPasswordReset?: boolean;
-}
-
 export class PoplaBackendStack extends Stack {
-  constructor(scope: Construct, id: string, props?: PoplaBackendStackProps) {
+  constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
     // ---- DynamoDB tables ----
@@ -556,10 +550,7 @@ export class PoplaBackendStack extends Stack {
       entry: path.join(__dirname, '../lambda/reset-participant-password/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
-      environment: {
-        ...playerAuthEnv,
-        FEATURE_ADMIN_PASSWORD_RESET: String(!!props?.enableAdminPasswordReset),
-      },
+      environment: playerAuthEnv,
     });
     playersTable.grantReadData(resetParticipantPasswordFn);
     resetParticipantPasswordFn.addToRolePolicy(
