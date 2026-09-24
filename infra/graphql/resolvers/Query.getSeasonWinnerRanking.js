@@ -2,18 +2,14 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
   return {
-    operation: 'Query',
-    index: 'bySeasonWinnerPoints',
-    query: {
-      expression: 'seasonId = :seasonId',
-      expressionValues: util.dynamodb.toMapValues({
-        ':seasonId': ctx.args.seasonId,
-      }),
-    },
-    scanIndexForward: false,
+    operation: 'Invoke',
+    payload: { arguments: ctx.args, identity: ctx.identity, rankingType: 'winners' },
   };
 }
 
 export function response(ctx) {
-  return ctx.result.items;
+  if (ctx.error) {
+    util.error(ctx.error.message, ctx.error.type);
+  }
+  return ctx.result;
 }

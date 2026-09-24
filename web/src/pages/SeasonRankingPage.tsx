@@ -5,6 +5,7 @@ import {
   closeSeason,
   getSeason,
   getSeasonStanding,
+  getSeasonWeightedRanking,
   getSeasonWinnerRanking,
   listMatchdaysBySeason,
   listPlayerNames,
@@ -17,9 +18,22 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
 import { compareMatchdayWhenDesc, formatMatchdayWhen } from '../lib/matchday';
-import { formatSeasonRankingShare, formatSeasonWinnerRankingShare } from '../lib/shareFormat';
+import {
+  formatSeasonRankingShare,
+  formatSeasonWeightedRankingShare,
+  formatSeasonWinnerRankingShare,
+} from '../lib/shareFormat';
 import { useMyPlayerId } from '../lib/useMyPlayerId';
-import type { Matchday, Player, Season, SeasonStanding } from '../types/graphql';
+import type { Matchday, Player, Season, SeasonStanding, WeightedSeasonStanding } from '../types/graphql';
+
+type SeasonTab = 'ranking' | 'winners' | 'weighted' | 'matchdays';
+
+const SEASON_TABS: { id: SeasonTab; label: string }[] = [
+  { id: 'ranking', label: 'Ranking' },
+  { id: 'winners', label: 'Round winners' },
+  { id: 'weighted', label: 'Weighted ranking' },
+  { id: 'matchdays', label: 'Matchdays' },
+];
 
 export function SeasonRankingPage() {
   const { seasonId } = useParams<{ seasonId: string }>();
@@ -32,30 +46,34 @@ export function SeasonRankingPage() {
   const [hasOtherActiveSeason, setHasOtherActiveSeason] = useState(false);
   const [standings, setStandings] = useState<SeasonStanding[]>([]);
   const [winnerStandings, setWinnerStandings] = useState<SeasonStanding[]>([]);
+  const [weightedStandings, setWeightedStandings] = useState<WeightedSeasonStanding[]>([]);
   const [matchdays, setMatchdays] = useState<Matchday[]>([]);
   const [players, setPlayers] = useState<Map<string, Player>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ranking' | 'winners' | 'matchdays'>('ranking');
+  const [activeTab, setActiveTab] = useState<SeasonTab>('ranking');
 
   async function refresh() {
     if (!seasonId) return;
     setError(null);
     try {
-      const [s, allSeasons, standing, winnerStanding, matchdayList, playerList] = await Promise.all([
-        getSeason(idToken, seasonId),
-        listSeasons(idToken),
-        getSeasonStanding(idToken, seasonId),
-        getSeasonWinnerRanking(idToken, seasonId),
-        listMatchdaysBySeason(idToken, seasonId),
-        listPlayerNames(idToken),
-      ]);
+      const [s, allSeasons, standing, winnerStanding, weightedStanding, matchdayList, playerList] =
+        await Promise.all([
+          getSeason(idToken, seasonId),
+          listSeasons(idToken),
+          getSeasonStanding(idToken, seasonId),
+          getSeasonWinnerRanking(idToken, seasonId),
+          getSeasonWeightedRanking(idToken, seasonId),
+          listMatchdaysBySeason(idToken, seasonId),
+          listPlayerNames(idToken),
+        ]);
       setSeason(s);
       setHasOtherActiveSeason(allSeasons.some((x) => x.status === 'ACTIVE' && x.seasonId !== seasonId));
       setStandings(standing);
       setWinnerStandings(winnerStanding);
+      setWeightedStandings(weightedStanding);
       setMatchdays(matchdayList);
       setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
     } catch (err) {
@@ -107,7 +125,15 @@ export function SeasonRankingPage() {
     winnerStandings,
     (a, b) => a.winnerPoints === b.winnerPoints
   );
+  const rankedByWeighted = assignCompetitionRank(
+    weightedStandings,
+    (a, b) => a.weightedAverage === b.weightedAverage
+  );
   const orderedMatchdays = [...matchdays].sort(compareMatchdayWhenDesc);
+  // Mirrors the Lambda's own rounding (see infra/lambda/get-season-weighted-ranking) —
+  // same "duplicated, not shared" convention as assignCompetitionRank's own comment.
+  const closedMatchdayCount = matchdays.filter((m) => m.status === 'CLOSED').length;
+  const minMatchdaysRequired = Math.ceil(closedMatchdayCount * 0.25);
   const playerName = (playerId: string) => {
     const player = players.get(playerId);
     if (!player) return playerId;
@@ -166,29 +192,30 @@ export function SeasonRankingPage() {
         />
       )}
 
-      <div className="tabs">
-        <button
-          type="button"
-          className={`tab-button${activeTab === 'ranking' ? ' tab-button-active' : ''}`}
-          onClick={() => setActiveTab('ranking')}
-        >
-          Ranking
-        </button>
-        <button
-          type="button"
-          className={`tab-button${activeTab === 'winners' ? ' tab-button-active' : ''}`}
-          onClick={() => setActiveTab('winners')}
-        >
-          Round winners
-        </button>
-        <button
-          type="button"
-          className={`tab-button${activeTab === 'matchdays' ? ' tab-button-active' : ''}`}
-          onClick={() => setActiveTab('matchdays')}
-        >
-          Matchdays
-        </button>
+      <div className="tabs season-tabs">
+        {SEASON_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`tab-button${activeTab === tab.id ? ' tab-button-active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+      <select
+        className="season-tab-select"
+        value={activeTab}
+        onChange={(e) => setActiveTab(e.target.value as SeasonTab)}
+        aria-label="Season view"
+      >
+        {SEASON_TABS.map((tab) => (
+          <option key={tab.id} value={tab.id}>
+            {tab.label}
+          </option>
+        ))}
+      </select>
 
       {activeTab === 'ranking' && (
         <section>
@@ -288,6 +315,73 @@ export function SeasonRankingPage() {
                 </tbody>
               </table>
             </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === 'weighted' && (
+        <section>
+          <div className="section-heading">
+            <h2>Weighted ranking</h2>
+            {weightedStandings.length > 0 && (
+              <ShareButton
+                title="Popla Cup weighted ranking"
+                text={formatSeasonWeightedRankingShare(season, rankedByWeighted, playerName)}
+              />
+            )}
+          </div>
+          {closedMatchdayCount === 0 ? (
+            <p>No matchdays have been closed yet this season.</p>
+          ) : (
+            <>
+              <p className="hint-text">
+                Minimum {minMatchdaysRequired} matchday{minMatchdaysRequired === 1 ? '' : 's'} played to
+                qualify.
+              </p>
+              {weightedStandings.length === 0 ? (
+                <p>No one has played enough matchdays yet to qualify.</p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Player</th>
+                        <th>Avg points</th>
+                        <th>Participations</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rankedByWeighted.map((standing) => (
+                        <ClickableRow
+                          key={standing.playerId}
+                          to={`/seasons/${seasonId}/players/${standing.playerId}`}
+                        >
+                          <td>
+                            <span className="scoreboard-chip">{standing.rank}</span>
+                          </td>
+                          <td className={`name${standing.playerId === myPlayerId ? ' self' : ''}`}>
+                            <Link
+                              to={`/seasons/${seasonId}/players/${standing.playerId}`}
+                              className="row-link"
+                            >
+                              {playerName(standing.playerId)}
+                            </Link>
+                          </td>
+                          <td className="num">{standing.weightedAverage.toFixed(1)}</td>
+                          <td className="num">{standing.matchdaysPlayed}</td>
+                        </ClickableRow>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="hint-text">
+                Each matchday's points count toward your average weighted by that matchday's size — a
+                bigger, more competitive field counts for more than a smaller one — so this rewards
+                consistent performance across matchdays rather than raw participation.
+              </p>
+            </>
           )}
         </section>
       )}

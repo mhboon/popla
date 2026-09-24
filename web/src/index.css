@@ -108,6 +108,15 @@ h2 {
   border-bottom-color: var(--color-ball);
 }
 
+.season-tab-select {
+  display: none;
+}
+
+.hint-text {
+  color: var(--color-slate);
+  font-size: 0.9rem;
+}
+
 a {
   color: var(--color-court);
   font-weight: 600;
@@ -939,6 +948,17 @@ button:disabled {
 
   .app-main section {
     padding: var(--space-4);
+  }
+
+  /* Season page's tab bar collapses to a dropdown once there isn't room
+     for every tab label side by side. */
+  .season-tabs {
+    display: none;
+  }
+
+  .season-tab-select {
+    display: block;
+    margin: var(--space-4) 0;
   }
 
   form,
