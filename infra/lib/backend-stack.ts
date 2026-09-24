@@ -95,6 +95,14 @@ export class PoplaBackendStack extends Stack {
       partitionKey: { name: 'matchdayId', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'rankScore', type: dynamodb.AttributeType.NUMBER },
     });
+    // Lets getSeasonWeightedRanking pull every result row for a season in
+    // one Query, to compute the ln(N)-weighted average (see SPEC.md's
+    // Weighted Ranking) — the other two indexes above are scoped to a
+    // single matchday.
+    matchdayResultsTable.addGlobalSecondaryIndex({
+      indexName: 'bySeasonId',
+      partitionKey: { name: 'seasonId', type: dynamodb.AttributeType.STRING },
+    });
 
     const seasonStandingsTable = new dynamodb.Table(this, 'SeasonStandingsTable', {
       tableName: 'PoplaSeasonStandings',
@@ -253,10 +261,6 @@ export class PoplaBackendStack extends Stack {
       'ResultsDataSource',
       matchdayResultsTable
     );
-    const standingsDS = api.addDynamoDbDataSource(
-      'StandingsDataSource',
-      seasonStandingsTable
-    );
     const matchdayParticipantsDS = api.addDynamoDbDataSource(
       'MatchdayParticipantsDataSource',
       matchdayParticipantsTable
@@ -287,8 +291,6 @@ export class PoplaBackendStack extends Stack {
       { dataSource: matchesDS, typeName: 'Query', fieldName: 'listMatches', file: 'Query.listMatches.js' },
       { dataSource: matchesDS, typeName: 'Mutation', fieldName: 'recordSetResult', file: 'Mutation.recordSetResult.js' },
       { dataSource: resultsDS, typeName: 'Query', fieldName: 'getMatchdayRanking', file: 'Query.getMatchdayRanking.js' },
-      { dataSource: standingsDS, typeName: 'Query', fieldName: 'getSeasonStanding', file: 'Query.getSeasonStanding.js' },
-      { dataSource: standingsDS, typeName: 'Query', fieldName: 'getSeasonWinnerRanking', file: 'Query.getSeasonWinnerRanking.js' },
     ];
 
     for (const { dataSource, typeName, fieldName, file } of nativeResolvers) {
@@ -358,6 +360,73 @@ export class PoplaBackendStack extends Stack {
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(
         path.join(RESOLVERS_DIR, 'Mutation.closeMatchday.js')
+      ),
+    });
+
+    // getSeasonStanding/getSeasonWinnerRanking used to be native
+    // (SeasonStandings.bySeasonPoints/.bySeasonWinnerPoints GSI queries),
+    // but excluding guests (see SPEC.md's Guest participants) is a live
+    // join against the Players table that a single-table native resolver
+    // can't do — hence Lambda. One function serves both fields
+    // (`rankingType` in the Invoke payload picks the GSI); see
+    // infra/lambda/get-season-ranking.
+    const getSeasonRankingFn = new NodejsFunction(this, 'GetSeasonRankingFn', {
+      entry: path.join(__dirname, '../lambda/get-season-ranking/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: {
+        SEASON_STANDINGS_TABLE: seasonStandingsTable.tableName,
+        PLAYERS_TABLE: playersTable.tableName,
+      },
+    });
+    seasonStandingsTable.grantReadData(getSeasonRankingFn);
+    playersTable.grantReadData(getSeasonRankingFn);
+
+    const getSeasonRankingDS = api.addLambdaDataSource(
+      'GetSeasonRankingDataSource',
+      getSeasonRankingFn
+    );
+    // Logical IDs match the old native resolvers' (`${typeName}${fieldName}Resolver`)
+    // — see createPlayer's resolver above for why that matters.
+    getSeasonRankingDS.createResolver('QuerygetSeasonStandingResolver', {
+      typeName: 'Query',
+      fieldName: 'getSeasonStanding',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Query.getSeasonStanding.js')),
+    });
+    getSeasonRankingDS.createResolver('QuerygetSeasonWinnerRankingResolver', {
+      typeName: 'Query',
+      fieldName: 'getSeasonWinnerRanking',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Query.getSeasonWinnerRanking.js')),
+    });
+
+    // See SPEC.md's Weighted Ranking — real computation (ln(N)-weighted
+    // average, qualification threshold), not a plain indexed read.
+    const getSeasonWeightedRankingFn = new NodejsFunction(this, 'GetSeasonWeightedRankingFn', {
+      entry: path.join(__dirname, '../lambda/get-season-weighted-ranking/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: {
+        MATCHDAYS_TABLE: matchdaysTable.tableName,
+        MATCHDAY_RESULTS_TABLE: matchdayResultsTable.tableName,
+        PLAYERS_TABLE: playersTable.tableName,
+      },
+    });
+    matchdaysTable.grantReadData(getSeasonWeightedRankingFn);
+    matchdayResultsTable.grantReadData(getSeasonWeightedRankingFn);
+    playersTable.grantReadData(getSeasonWeightedRankingFn);
+
+    const getSeasonWeightedRankingDS = api.addLambdaDataSource(
+      'GetSeasonWeightedRankingDataSource',
+      getSeasonWeightedRankingFn
+    );
+    getSeasonWeightedRankingDS.createResolver('QuerygetSeasonWeightedRankingResolver', {
+      typeName: 'Query',
+      fieldName: 'getSeasonWeightedRanking',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Query.getSeasonWeightedRanking.js')
       ),
     });
 

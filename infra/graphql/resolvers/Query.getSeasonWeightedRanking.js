@@ -3,7 +3,7 @@ import { util } from '@aws-appsync/utils';
 export function request(ctx) {
   return {
     operation: 'Invoke',
-    payload: { arguments: ctx.args, identity: ctx.identity, rankingType: 'points' },
+    payload: { arguments: ctx.args, identity: ctx.identity },
   };
 }
 

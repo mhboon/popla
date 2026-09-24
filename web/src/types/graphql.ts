@@ -68,3 +68,11 @@ export interface SeasonStanding {
   matchdaysPlayed: number;
   winnerPoints: number;
 }
+
+export interface WeightedSeasonStanding {
+  seasonId: string;
+  playerId: string;
+  weightedAverage: number;
+  matchdaysPlayed: number;
+  totalPoints: number;
+}

@@ -8,6 +8,7 @@ import type {
   Player,
   Season,
   SeasonStanding,
+  WeightedSeasonStanding,
 } from '../types/graphql';
 
 const PLAYER_FIELDS = 'playerId displayName phone isGuest createdAt';
@@ -26,6 +27,8 @@ const MATCH_FIELDS = 'matchdayId round court team1PlayerIds team2PlayerIds team1
 const MATCHDAY_RESULT_FIELDS =
   'matchdayId playerId setsWon gamesWon gamesLost gameDiff rank seasonPoints winnerPoint';
 const SEASON_STANDING_FIELDS = 'seasonId playerId totalPoints matchdaysPlayed winnerPoints';
+const WEIGHTED_SEASON_STANDING_FIELDS =
+  'seasonId playerId weightedAverage matchdaysPlayed totalPoints';
 
 // Admin-only (ParticipantsPage, MatchdaySetupPage) — includes phone.
 export function listPlayers(idToken: string) {
@@ -184,6 +187,14 @@ export function getSeasonWinnerRanking(idToken: string, seasonId: string) {
     `query($seasonId: ID!) { getSeasonWinnerRanking(seasonId: $seasonId) { ${SEASON_STANDING_FIELDS} } }`,
     { seasonId }
   ).then((d) => d.getSeasonWinnerRanking);
+}
+
+export function getSeasonWeightedRanking(idToken: string, seasonId: string) {
+  return graphqlRequest<{ getSeasonWeightedRanking: WeightedSeasonStanding[] }>(
+    idToken,
+    `query($seasonId: ID!) { getSeasonWeightedRanking(seasonId: $seasonId) { ${WEIGHTED_SEASON_STANDING_FIELDS} } }`,
+    { seasonId }
+  ).then((d) => d.getSeasonWeightedRanking);
 }
 
 export function createMatchday(

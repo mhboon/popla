@@ -129,7 +129,9 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - PK: `matchdayId`, SK: `playerId`
 - Attributes: `setsWon`, `gamesWon`, `gamesLost`, `gameDiff`, `rank`,
   `seasonPoints`, `winnerPoint` (bool — see SPEC.md's Winner Points),
-  `seasonId` (denormalized for reference).
+  `participantCount` (that matchday's total participants, denormalized
+  for the weighted ranking's `ln(N)` weighting — see SPEC.md's Weighted
+  Ranking), `seasonId` (denormalized for reference).
 - Written once, by the `closeMatchday` Lambda, from the completed
   `Matches` for that matchday.
 - GSI `byMatchdayRank`: PK `matchdayId`, SK `rankScore` (number) — a
@@ -138,6 +140,8 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
   a plain descending `Query` returns the day ranking (games won desc,
   then game diff desc, then sets won desc — see SPEC.md's Day Ranking)
   directly. No client-side or resolver-side sorting needed.
+- GSI `bySeasonId`: PK `seasonId` only — lets `getSeasonWeightedRanking`
+  pull every result row for a season in one `Query`.
 
 ### `SeasonStandings`
 - PK: `seasonId`, SK: `playerId`
@@ -146,10 +150,13 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - Incrementally updated (atomic `ADD`) by `closeMatchday`, in the same
   transaction as the `MatchdayResults` write.
 - GSI `bySeasonPoints`: PK `seasonId`, SK `totalPoints` — descending
-  `Query` gives the season leaderboard directly, native resolver, no
-  Lambda involved on read.
+  `Query` gives the season leaderboard directly.
 - GSI `bySeasonWinnerPoints`: PK `seasonId`, SK `winnerPoints` — same
   idea, for the "round winners" season ranking.
+- Both indexes are queried from the `getSeasonRankingFn` Lambda (not a
+  native resolver): excluding guests (see SPEC.md's Guest participants)
+  needs a live join against `Players`, which a single-table native
+  resolver can't do. See Resolver Split below.
 
 ### Backups
 
@@ -186,8 +193,6 @@ one.
   → `JOINING`)
 - `listMatches(matchdayId, round?)`
 - `getMatchdayRanking(matchdayId)` — Query on `MatchdayResults.byMatchdayRank`
-- `getSeasonStanding(seasonId)` — Query on `SeasonStandings.bySeasonPoints`
-- `getSeasonWinnerRanking(seasonId)` — Query on `SeasonStandings.bySeasonWinnerPoints`
 - `createSeason`, `closeSeason`, `reopenSeason` — simple state changes.
   Only one `ACTIVE` season at a time is a UI-enforced convention, not a
   data-layer constraint — see Open Questions.
@@ -239,6 +244,21 @@ one.
   Cognito login (`AdminCreateUser`/`AdminDeleteUser`, keyed by phone —
   see Auth below) alongside the `Players` write, and (in `updatePlayer`)
   block a phone-number change for a player who's currently an admin.
+- `getSeasonStanding`/`getSeasonWinnerRanking(seasonId)` — one Lambda
+  (`getSeasonRankingFn`), `rankingType` in the Invoke payload picks
+  `SeasonStandings.bySeasonPoints` or `.bySeasonWinnerPoints`. Queries
+  the GSI (same as the old native resolvers), then `BatchGetItem`s
+  `Players` for the returned `playerId`s and filters out anyone
+  currently guest (`!phone`) — see SPEC.md's Guest participants. That
+  join is why this moved off a native resolver.
+- `getSeasonWeightedRanking(seasonId)` — see SPEC.md's Weighted Ranking.
+  Queries `Matchdays.bySeasonId` to count closed matchdays (the 25%
+  qualification threshold, rounded up), `MatchdayResults.bySeasonId` for
+  every result row that season, groups by `playerId` to compute
+  `Σ(seasonPoints × ln(participantCount)) / Σ(ln(participantCount))`,
+  drops anyone under the threshold or currently a guest (same
+  `Players` `BatchGetItem` as above), and sorts by weighted average,
+  then `matchdaysPlayed`, then `totalPoints`.
 - `promoteToAdmin`/`demoteFromAdmin(playerId)` — `AdminAddUserToGroup`/
   `AdminRemoveUserFromGroup` against the player's Cognito user;
   `demoteFromAdmin` rejects removing the caller's own admin status.

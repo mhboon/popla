@@ -1,6 +1,13 @@
 import { formatMatchdayWhen } from './matchday';
 import { PHONE_HINT } from './phone';
-import type { Match, Matchday, Player, Season, SeasonStanding } from '../types/graphql';
+import type {
+  Match,
+  Matchday,
+  Player,
+  Season,
+  SeasonStanding,
+  WeightedSeasonStanding,
+} from '../types/graphql';
 
 interface RankedDayStanding {
   rank: number;
@@ -51,6 +58,19 @@ export function formatSeasonWinnerRankingShare(
   const header = `Popla Cup — ${season.name} round winners`;
   const lines = standings.map(
     (s) => `${s.rank}. ${playerName(s.playerId)} — ${s.winnerPoints} 🏆`
+  );
+  return [header, '', ...lines].join('\n');
+}
+
+export function formatSeasonWeightedRankingShare(
+  season: Season,
+  standings: (WeightedSeasonStanding & { rank: number })[],
+  playerName: (playerId: string) => string
+): string {
+  const header = `Popla Cup — ${season.name} weighted ranking`;
+  const lines = standings.map(
+    (s) =>
+      `${s.rank}. ${playerName(s.playerId)} — ${s.weightedAverage.toFixed(1)} avg pts (${s.matchdaysPlayed} matchdays)`
   );
   return [header, '', ...lines].join('\n');
 }

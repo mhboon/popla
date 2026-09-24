@@ -76,15 +76,24 @@ A participant doesn't need a phone number / login to be added to a
 matchday, a ranking, or a season — an admin can register a **guest**:
 a `Player` with no phone and therefore no Cognito account. Guests:
 
-- Appear identically to any other participant in matchday rosters,
-  matchday rankings, and season standings — nothing about scoring or
-  ranking treats a guest differently.
+- Appear identically to any other participant in matchday rosters and
+  matchday (day) rankings — nothing about within-matchday scoring treats
+  a guest differently.
+- **Excluded from all season-level rankings** (season points, round
+  winners, and the weighted ranking — see Season Points below). This is
+  evaluated live off current guest status, not a snapshot: a participant
+  who loses their phone number drops out of season rankings immediately,
+  and one who gains a phone number appears immediately. Season points
+  still accrue for a guest in the background while they're excluded, so
+  a guest later promoted to a full participant shows up with their full
+  season total already intact — no history is lost.
 - Can't self-serve registration (no login) — an admin adds/removes them
   from a matchday's roster directly (see Registration above).
 - Can be promoted to a full, logged-in participant at any time by an
   admin giving them a phone number — the same action that turns any
   participant's login on (see Phase 2 below); no separate "promote"
-  action exists.
+  action exists. The reverse (an admin clearing a participant's phone
+  number) reverts them to guest status the same way.
 
 ### Match Generation
 
@@ -177,6 +186,52 @@ its participants, on top of season points:
 Season ranking is the sum of season points across all matchdays in the
 current season; a separate "round winners" season ranking is the sum of
 winner points across all matchdays in the current season.
+
+### Weighted Ranking
+
+A third season-level ranking surfaces relative performance instead of raw
+totals, so someone who's played fewer matchdays isn't automatically
+outranked by someone who's simply played (and shown up for) more:
+
+- **Qualification**: only participants who have played at least 25% of
+  the season's closed matchdays so far (rounded up — e.g. 25% of 6 closed
+  matchdays = 1.5, so 2 matchdays played is the minimum) appear in this
+  ranking. "Played" means closed matchdays the participant actually took
+  part in (earned season points that day), not just self-registered for.
+  This threshold is recomputed against the current count of closed
+  matchdays as the season progresses, so a participant who qualified
+  earlier in the season can later drop out of the ranking if their own
+  matchday count doesn't keep pace — this is expected, not a bug.
+- **Score**: a weighted average of the participant's season points across
+  the matchdays they played, where each matchday is weighted by
+  `ln(N)` (N = that matchday's participant count), so points earned in
+  bigger, more competitive fields count for more toward the average than
+  points earned in smaller ones:
+
+  ```
+  weighted_avg = Σ(points_i × ln(N_i)) / Σ(ln(N_i))
+  ```
+
+  (sum over the matchdays `i` the participant played; `points_i` is the
+  season points they earned that matchday, `N_i` is that matchday's
+  participant count).
+- Applies to season points only — the round-winners ranking has no
+  weighted-average equivalent.
+- Guests are excluded, same as the other two season-level rankings (see
+  Guest participants above).
+- **Tiebreak**: more matchdays played wins the tie, then total season
+  points.
+
+### Season ranking UI
+
+The season page has four tabs — season points, round winners, weighted
+ranking (third), and matchdays — collapsing to a dropdown selector
+instead of tabs when they don't fit (e.g. on mobile). The weighted
+ranking tab shows,
+above its table, the current minimum-matchdays-required number (see
+Qualification above), and below the table, a plain-language explanation
+of how the weighted average is calculated. Its table columns are:
+participant, average points, and number of participations.
 
 ## Roles & Access
 
