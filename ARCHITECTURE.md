@@ -129,9 +129,7 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 - PK: `matchdayId`, SK: `playerId`
 - Attributes: `setsWon`, `gamesWon`, `gamesLost`, `gameDiff`, `rank`,
   `seasonPoints`, `winnerPoint` (bool — see SPEC.md's Winner Points),
-  `participantCount` (that matchday's total participants, denormalized
-  for the weighted ranking's `ln(N)` weighting — see SPEC.md's Weighted
-  Ranking), `seasonId` (denormalized for reference).
+  `seasonId` (denormalized for reference).
 - Written once, by the `closeMatchday` Lambda, from the completed
   `Matches` for that matchday.
 - GSI `byMatchdayRank`: PK `matchdayId`, SK `rankScore` (number) — a
@@ -253,12 +251,14 @@ one.
   join is why this moved off a native resolver.
 - `getSeasonWeightedRanking(seasonId)` — see SPEC.md's Weighted Ranking.
   Queries `Matchdays.bySeasonId` to count closed matchdays (the 25%
-  qualification threshold, rounded up), `MatchdayResults.bySeasonId` for
-  every result row that season, groups by `playerId` to compute
-  `Σ(seasonPoints × ln(participantCount)) / Σ(ln(participantCount))`,
-  drops anyone under the threshold or currently a guest (same
-  `Players` `BatchGetItem` as above), and sorts by weighted average,
-  then `matchdaysPlayed`, then `totalPoints`.
+  qualification threshold, rounded up), then `MatchdayResults.bySeasonId`
+  for every result row that season. Each matchday's participant count
+  (`N`) is derived by grouping those same rows by `matchdayId` — not a
+  stored attribute — so it's correct regardless of when the matchday was
+  closed, no backfill needed. Groups by `playerId` to compute
+  `Σ(seasonPoints × ln(N)) / Σ(ln(N))`, drops anyone under the threshold
+  or currently a guest (same `Players` `BatchGetItem` as above), and
+  sorts by weighted average, then `matchdaysPlayed`, then `totalPoints`.
 - `promoteToAdmin`/`demoteFromAdmin(playerId)` — `AdminAddUserToGroup`/
   `AdminRemoveUserFromGroup` against the player's Cognito user;
   `demoteFromAdmin` rejects removing the caller's own admin status.

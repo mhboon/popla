@@ -106,11 +106,6 @@ type MatchdayResult {
   # Whether this player earned a winner point ("streepje") for this
   # matchday — see SPEC.md's Winner Points.
   winnerPoint: Boolean!
-  # Total participants in this matchday — denormalized at close time so
-  # the weighted season ranking (see SPEC.md's Weighted Ranking) can
-  # weight each matchday's points by ln(participantCount) without a
-  # second lookup per matchday.
-  participantCount: Int!
 }
 
 type SeasonStanding {
