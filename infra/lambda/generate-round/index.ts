@@ -7,7 +7,14 @@ import {
   UpdateCommand,
   TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { courtsFromOrderedPlayers, randomOrder } from '../shared/pairing';
+import {
+  buildPartnershipHistory,
+  courtsFromOrderedPlayers,
+  randomOrder,
+  rankByStandingsSoFar,
+  type MatchRecord,
+  type PartnershipHistory,
+} from '../shared/pairing';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -68,12 +75,23 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
 
   const participantIds = joiningParticipants.map((item) => item.playerId as string);
 
+  const priorMatches = (existingMatches.Items ?? []) as unknown as MatchRecord[];
+
   const orderedPlayerIds =
     round === 1 || matchday.format === 'AMERICANO'
       ? randomOrder(participantIds)
-      : rankByStandingsSoFar(existingMatches.Items ?? [], participantIds);
+      : rankByStandingsSoFar(priorMatches, participantIds);
 
-  const courts = courtsFromOrderedPlayers(round, orderedPlayerIds);
+  // Repeat-partner avoidance only applies to Mexicano — Americano is
+  // documented in SPEC.md as intentionally not avoiding repeats, so it
+  // gets an empty history and courtsFromOrderedPlayers's split picking
+  // degenerates back to a plain random 2v2 split.
+  const history: PartnershipHistory =
+    matchday.format === 'MEXICANO'
+      ? buildPartnershipHistory(priorMatches, round)
+      : { previousRound: new Set(), earlier: new Set() };
+
+  const courts = courtsFromOrderedPlayers(round, orderedPlayerIds, history);
 
   await ddb.send(
     new BatchWriteCommand({
@@ -134,53 +152,3 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
     status: 'PENDING',
   }));
 };
-
-/**
- * Mexicano rounds after the first: rank players by the standings
- * accumulated so far *this matchday* (games won, then game differential,
- * then sets won — see SPEC.md's Day Ranking), derived from the completed
- * Matches of prior rounds. This is deliberately not read from a
- * persisted table — MatchdayResults only exists once the matchday is
- * closed, so the interim ranking is recomputed each time a round is
- * generated. Ties are broken by shuffling before the stable sort, so
- * equal standings land in random relative order each time.
- */
-function rankByStandingsSoFar(
-  priorMatches: Record<string, unknown>[],
-  participantIds: string[]
-): string[] {
-  const standings = new Map<string, { setsWon: number; gamesWon: number; gameDiff: number }>();
-  for (const playerId of participantIds) {
-    standings.set(playerId, { setsWon: 0, gamesWon: 0, gameDiff: 0 });
-  }
-
-  for (const match of priorMatches) {
-    if (match.status !== 'COMPLETE') continue;
-    const t1 = match.team1Games as number;
-    const t2 = match.team2Games as number;
-    const team1Won = t1 > t2;
-
-    for (const playerId of match.team1PlayerIds as string[]) {
-      const s = standings.get(playerId);
-      if (!s) continue;
-      s.setsWon += team1Won ? 1 : 0;
-      s.gamesWon += t1;
-      s.gameDiff += t1 - t2;
-    }
-    for (const playerId of match.team2PlayerIds as string[]) {
-      const s = standings.get(playerId);
-      if (!s) continue;
-      s.setsWon += team1Won ? 0 : 1;
-      s.gamesWon += t2;
-      s.gameDiff += t2 - t1;
-    }
-  }
-
-  return randomOrder(participantIds).sort((a, b) => {
-    const sa = standings.get(a)!;
-    const sb = standings.get(b)!;
-    if (sb.gamesWon !== sa.gamesWon) return sb.gamesWon - sa.gamesWon;
-    if (sb.gameDiff !== sa.gameDiff) return sb.gameDiff - sa.gameDiff;
-    return sb.setsWon - sa.setsWon;
-  });
-}
