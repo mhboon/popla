@@ -107,7 +107,20 @@ Two supported formats, selectable per matchday:
 3. Participants are bucketed into groups of 4 in rank order: ranks 1–4 to
    one court, ranks 5–8 to the next, and so on.
 4. Within each group of 4, the two teams (partner/opponent assignment) are
-   randomized — not a fixed seeding rule.
+   randomized — not a fixed seeding rule — but weighted to avoid repeat
+   partnerships *within that same group*, this matchday only:
+   - **Hard rule**: never reconstruct a partnership from the immediately
+     previous round. Always possible — each of the 4 players has at most
+     one partner from that round, so at most one of the 3 possible splits
+     can ever collide with it.
+   - **Soft rule**: among whatever's left, prefer the split with the
+     fewest partnerships repeated from any *earlier* round (not the
+     previous one). If every remaining option repeats something, that's
+     accepted — this is a preference, not a guarantee.
+   - This only ever looks within the one group of 4 being split — it
+     never reaches into a different court's group to avoid a repeat, and
+     it has no effect on which players land in a group together in the
+     first place (that's entirely the standings-based ranking above).
 5. Repeat steps 2–4 for each subsequent round the admin generates
    (re-rank → re-bucket → randomize within bucket each time), until the
    admin ends the matchday.

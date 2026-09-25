@@ -211,7 +211,15 @@ one.
   no fixed round count, see `SPEC.md`), reads current standings (round 1:
   the participant list, unranked; later rounds: the interim per-matchday
   standings computed from completed `Matches` so far — see note below),
-  runs the Mexicano or Americano pairing algorithm per `SPEC.md`,
+  runs the Mexicano or Americano pairing algorithm per `SPEC.md` — for
+  Mexicano, this also derives a partnership history (this matchday's
+  prior `Matches`, split into "immediately previous round" vs "earlier")
+  and weighs each group-of-4's 2v2 split against it (`buildPartnershipHistory`
+  + `courtsFromOrderedPlayers` in `infra/lambda/shared/pairing.ts`, which
+  also holds `rankByStandingsSoFar`/`computeStandings` now — both pulled
+  out of this Lambda so `infra/scripts/simulate-pairing.ts`, a local CLI
+  for dry-running the pairing algorithm over synthetic players/rounds,
+  can import the exact same logic instead of reimplementing it) —
   batch-writes the `Matches` items for that round. On round 1 specifically,
   this is also where "closing registration" now happens, folded into
   starting play instead of being its own mutation: validates a non-zero
