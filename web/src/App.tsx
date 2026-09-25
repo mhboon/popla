@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { AccountPage } from './pages/AccountPage';
 import { ParticipantsPage } from './pages/ParticipantsPage';
+import { ParticipantPage } from './pages/ParticipantPage';
 import { SeasonsPage } from './pages/SeasonsPage';
 import { SeasonRankingPage } from './pages/SeasonRankingPage';
 import { PlayerSeasonResultsPage } from './pages/PlayerSeasonResultsPage';
@@ -55,6 +56,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <ParticipantsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/participants/:playerId"
+            element={
+              <ProtectedRoute>
+                <ParticipantPage />
               </ProtectedRoute>
             }
           />

@@ -1,18 +1,10 @@
-import { Fragment, useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
-import {
-  createPlayer,
-  demoteFromAdmin,
-  listAdminPhoneNumbers,
-  listPlayers,
-  promoteToAdmin,
-  resetParticipantPassword,
-  updatePlayer,
-} from '../lib/api';
+import { createPlayer, listAdminPhoneNumbers, listPlayers, promoteToAdmin } from '../lib/api';
 import { sortByName } from '../lib/sort';
 import { PHONE_HINT, PHONE_PATTERN } from '../lib/phone';
-import { ShareButton } from '../components/ShareButton';
-import { formatPasswordResetShare } from '../lib/shareFormat';
+import { ClickableRow } from '../components/ClickableRow';
 import type { Player } from '../types/graphql';
 
 const emptyForm = { displayName: '', phone: '', isAdmin: false };
@@ -35,22 +27,6 @@ export function ParticipantsPage() {
 
   const [registerForm, setRegisterForm] = useState(emptyForm);
   const [registering, setRegistering] = useState(false);
-
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState(emptyForm);
-  // The admin status editForm.isAdmin started from — fixed at startEdit,
-  // never touched by the checkbox afterward, so handleSaveEdit can tell
-  // whether the checkbox actually changed rather than diffing a value
-  // against itself.
-  const [editingWasAdmin, setEditingWasAdmin] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const [resettingId, setResettingId] = useState<string | null>(null);
-  // Deliberately component state only, never persisted — cleared on
-  // dismiss or navigating away.
-  const [resetPassword, setResetPassword] = useState<{ playerId: string; password: string } | null>(
-    null
-  );
 
   async function refresh() {
     setLoading(true);
@@ -96,59 +72,6 @@ export function ParticipantsPage() {
       setError(err instanceof Error ? err.message : 'Failed to register participant');
     } finally {
       setRegistering(false);
-    }
-  }
-
-  function startEdit(player: Player, isAdmin: boolean) {
-    setEditingId(player.playerId);
-    setEditForm({
-      displayName: player.displayName,
-      phone: player.phone ?? '',
-      isAdmin,
-    });
-    setEditingWasAdmin(isAdmin);
-  }
-
-  async function handleSaveEdit(event: FormEvent) {
-    event.preventDefault();
-    if (!editingId) return;
-    setError(null);
-    setSaving(true);
-    try {
-      await updatePlayer(idToken, {
-        playerId: editingId,
-        displayName: editForm.displayName,
-        // Explicit null (not undefined) so blanking the field actually
-        // clears it server-side — omitting the argument entirely means
-        // "leave unchanged" (see infra/lambda/update-player).
-        phone: editForm.phone || null,
-      });
-      if (editForm.isAdmin !== editingWasAdmin) {
-        if (editForm.isAdmin) {
-          await promoteToAdmin(idToken, editingId);
-        } else {
-          await demoteFromAdmin(idToken, editingId);
-        }
-      }
-      setEditingId(null);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save changes');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleResetPassword(playerId: string) {
-    setError(null);
-    setResettingId(playerId);
-    try {
-      const password = await resetParticipantPassword(idToken, playerId);
-      setResetPassword({ playerId, password });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset password');
-    } finally {
-      setResettingId(null);
     }
   }
 
@@ -223,100 +146,15 @@ export function ParticipantsPage() {
                   const isSelf = !!player.phone && player.phone === user!.username;
 
                   return (
-                    <Fragment key={player.playerId}>
-                      {editingId === player.playerId ? (
-                        <tr>
-                          <td colSpan={3}>
-                            <form onSubmit={handleSaveEdit} className="inline-form">
-                              <input
-                                type="text"
-                                value={editForm.displayName}
-                                onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
-                                required
-                              />
-                              <input
-                                type="tel"
-                                inputMode="numeric"
-                                value={editForm.phone}
-                                onChange={(e) => {
-                                  const phone = sanitizePhoneInput(e.target.value);
-                                  setEditForm({ ...editForm, phone, isAdmin: phone ? editForm.isAdmin : false });
-                                }}
-                                placeholder="Phone (blank for a guest)"
-                                pattern={PHONE_PATTERN}
-                                disabled={editingWasAdmin}
-                                title={
-                                  editingWasAdmin
-                                    ? "Admins can't be renumbered here — remove admin status first, or use the AWS console."
-                                    : PHONE_HINT
-                                }
-                              />
-                              {editingWasAdmin && <p>{PHONE_HINT}</p>}
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={editForm.isAdmin}
-                                  disabled={!editForm.phone || (isSelf && editingWasAdmin)}
-                                  title={
-                                    !editForm.phone
-                                      ? 'Requires a phone number — that\'s what enables login.'
-                                      : isSelf && editingWasAdmin
-                                        ? "You can't remove your own admin status — ask another admin, or use the AWS console."
-                                        : undefined
-                                  }
-                                  onChange={(e) => setEditForm({ ...editForm, isAdmin: e.target.checked })}
-                                />
-                                Admin
-                              </label>
-                              <button type="submit" className="button-primary" disabled={saving}>
-                                {saving ? 'Saving…' : 'Save'}
-                              </button>
-                              <button type="button" onClick={() => setEditingId(null)}>
-                                Cancel
-                              </button>
-                            </form>
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr>
-                          <td className={`name${isSelf ? ' self' : ''}`}>{player.displayName}</td>
-                          <td>{player.phone ?? (player.isGuest ? 'Guest' : '—')}</td>
-                          <td>
-                            <button type="button" onClick={() => startEdit(player, isRowAdmin)}>
-                              Edit
-                            </button>{' '}
-                            {!player.isGuest && (
-                              <button
-                                type="button"
-                                onClick={() => handleResetPassword(player.playerId)}
-                                disabled={resettingId === player.playerId}
-                              >
-                                {resettingId === player.playerId ? 'Resetting…' : 'Reset password'}
-                              </button>
-                            )}{' '}
-                            {isRowAdmin && <span className="status-badge">Admin</span>}
-                          </td>
-                        </tr>
-                      )}
-                      {resetPassword?.playerId === player.playerId && (
-                        <tr>
-                          <td colSpan={3}>
-                            <p>
-                              Temporary password for {player.displayName}:{' '}
-                              <strong>{resetPassword.password}</strong>
-                            </p>
-                            <ShareButton
-                              title="Popla Cup login"
-                              text={formatPasswordResetShare(player, resetPassword.password)}
-                              label="Share login"
-                            />{' '}
-                            <button type="button" onClick={() => setResetPassword(null)}>
-                              Dismiss
-                            </button>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                    <ClickableRow key={player.playerId} to={`/participants/${player.playerId}`}>
+                      <td className={`name${isSelf ? ' self' : ''}`}>
+                        <Link to={`/participants/${player.playerId}`} className="row-link">
+                          {player.displayName}
+                        </Link>
+                      </td>
+                      <td>{player.phone ?? (player.isGuest ? 'Guest' : '—')}</td>
+                      <td>{isRowAdmin && <span className="status-badge">Admin</span>}</td>
+                    </ClickableRow>
                   );
                 })}
               </tbody>
