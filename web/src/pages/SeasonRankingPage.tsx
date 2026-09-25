@@ -335,8 +335,8 @@ export function SeasonRankingPage() {
           ) : (
             <>
               <p className="hint-text">
-                Minimum {minMatchdaysRequired} matchday{minMatchdaysRequired === 1 ? '' : 's'} played to
-                qualify.
+                Minimum {minMatchdaysRequired} matchday{minMatchdaysRequired === 1 ? '' : 's'} (25%)
+                played to qualify.
               </p>
               {weightedStandings.length === 0 ? (
                 <p>No one has played enough matchdays yet to qualify.</p>
@@ -380,6 +380,9 @@ export function SeasonRankingPage() {
                 Each matchday's points count toward your average weighted by that matchday's size — a
                 bigger, more competitive field counts for more than a smaller one — so this rewards
                 consistent performance across matchdays rather than raw participation.
+              </p>
+              <p className="hint-text formula-text">
+                weighted average = Σ(points × ln(matchday size)) / Σ(ln(matchday size))
               </p>
             </>
           )}

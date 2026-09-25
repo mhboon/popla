@@ -117,6 +117,10 @@ h2 {
   font-size: 0.9rem;
 }
 
+.formula-text {
+  font-family: var(--font-mono);
+}
+
 a {
   color: var(--color-court);
   font-weight: 600;
