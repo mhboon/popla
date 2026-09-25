@@ -595,6 +595,10 @@ function MatchdaySetupPanel({
   const [newPlayerPhone, setNewPlayerPhone] = useState('');
   const [creatingPlayer, setCreatingPlayer] = useState(false);
   const [savingRoster, setSavingRoster] = useState(false);
+  // Cleared as soon as the admin touches the selection again, so it
+  // never lingers as a stale "saved" claim next to an actually-unsaved
+  // edit.
+  const [rosterSaved, setRosterSaved] = useState(false);
 
   // Newest first — "who registered when." Waitlist stays oldest-first,
   // i.e. queue order: that's the order setMatchdayJoining promotes from.
@@ -647,6 +651,7 @@ function MatchdaySetupPanel({
       });
       setRosterPool((prev) => sortByName([...prev, player]));
       setSelectedRoster((prev) => new Set(prev).add(player.playerId));
+      setRosterSaved(false);
       setNewPlayerName('');
       setNewPlayerPhone('');
       setAddingPlayer(false);
@@ -658,6 +663,7 @@ function MatchdaySetupPanel({
   }
 
   function toggleRoster(playerId: string) {
+    setRosterSaved(false);
     setSelectedRoster((prev) => {
       const next = new Set(prev);
       if (next.has(playerId)) next.delete(playerId);
@@ -669,6 +675,7 @@ function MatchdaySetupPanel({
   async function handleUpdateRoster(event: FormEvent) {
     event.preventDefault();
     setActionError(null);
+    setRosterSaved(false);
     setSavingRoster(true);
     try {
       const toAdd = [...selectedRoster].filter((id) => !currentJoiningIds.has(id));
@@ -678,6 +685,7 @@ function MatchdaySetupPanel({
         ...toRemove.map((playerId) => setMatchdayJoining(idToken, { matchdayId, playerId, joining: false })),
       ]);
       await onSaved();
+      setRosterSaved(true);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to update the roster');
     } finally {
@@ -795,6 +803,7 @@ function MatchdaySetupPanel({
             <button type="submit" className="button-primary" disabled={!rosterChanged || savingRoster}>
               {savingRoster ? 'Updating…' : 'Update roster'}
             </button>
+            {rosterSaved && <p>Roster updated.</p>}
           </form>
 
           <div className="page-actions">
