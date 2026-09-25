@@ -47,6 +47,19 @@ export const handler = async (event: { arguments: GetSeasonWeightedRankingArgs }
     })
   );
 
+  // Participant count per matchday, derived from the fetched rows
+  // themselves (every player who played that matchday has a row) rather
+  // than trusted from a stored attribute — this way it's correct
+  // regardless of when the matchday was closed, with no data migration
+  // needed for matchdays that predate this ranking.
+  const participantCountByMatchday = new Map<string, number>();
+  for (const r of results) {
+    participantCountByMatchday.set(
+      r.matchdayId,
+      (participantCountByMatchday.get(r.matchdayId) ?? 0) + 1
+    );
+  }
+
   const byPlayer = new Map<string, PlayerAccumulator>();
   for (const r of results) {
     let acc = byPlayer.get(r.playerId);
@@ -54,7 +67,7 @@ export const handler = async (event: { arguments: GetSeasonWeightedRankingArgs }
       acc = { matchdaysPlayed: 0, totalPoints: 0, weightedPointsSum: 0, weightSum: 0 };
       byPlayer.set(r.playerId, acc);
     }
-    const weight = Math.log(r.participantCount as number);
+    const weight = Math.log(participantCountByMatchday.get(r.matchdayId)!);
     acc.matchdaysPlayed += 1;
     acc.totalPoints += r.seasonPoints as number;
     acc.weightedPointsSum += (r.seasonPoints as number) * weight;

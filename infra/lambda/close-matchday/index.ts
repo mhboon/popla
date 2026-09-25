@@ -181,7 +181,6 @@ export const handler = async (event: { arguments: CloseMatchdayArgs }) => {
           seasonPoints,
           winnerPoint,
           rankScore,
-          participantCount,
         },
       },
     });
