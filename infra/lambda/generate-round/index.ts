@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import {
   buildPartnershipHistory,
+  courtsFromGlobalRandomPairing,
   courtsFromOrderedPlayers,
   randomOrder,
   rankByStandingsSoFar,
@@ -77,19 +78,24 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
 
   const priorMatches = (existingMatches.Items ?? []) as unknown as MatchRecord[];
 
-  const orderedPlayerIds =
-    round === 1 || matchday.format === 'AMERICANO'
-      ? randomOrder(participantIds)
-      : rankByStandingsSoFar(priorMatches, participantIds);
-
-  // Repeat-partner avoidance applies to both formats now (see SPEC.md's
-  // Match Generation) — only *which players land in a group together*
-  // differs: Mexicano ranks by standings, Americano reshuffles fully at
-  // random every round. Round 1 has no prior matches either way, so
-  // history is naturally empty there regardless of format.
+  // Repeat-partner avoidance applies to both formats (see SPEC.md's Match
+  // Generation), but at different scopes: Mexicano's groups of 4 are
+  // meaningful (standings-based), so avoidance stays scoped to whichever
+  // 4 land in a bucket together; Americano's groupings carry no such
+  // meaning, so it pairs up the entire field at once instead, with no
+  // bucket boundary constraining which players can avoid a repeat with
+  // which. Round 1 has no prior matches either way, so history is
+  // naturally empty there regardless of format.
   const history: PartnershipHistory = buildPartnershipHistory(priorMatches, round);
 
-  const courts = courtsFromOrderedPlayers(round, orderedPlayerIds, history);
+  const courts =
+    matchday.format === 'AMERICANO'
+      ? courtsFromGlobalRandomPairing(round, participantIds, history)
+      : courtsFromOrderedPlayers(
+          round,
+          round === 1 ? randomOrder(participantIds) : rankByStandingsSoFar(priorMatches, participantIds),
+          history
+        );
 
   await ddb.send(
     new BatchWriteCommand({

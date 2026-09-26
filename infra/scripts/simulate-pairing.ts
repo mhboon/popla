@@ -1,24 +1,26 @@
 #!/usr/bin/env -S npx tsx
-// Local simulator for the Mexicano pairing algorithm — imports the exact
-// same pure functions the real generateRound Lambda uses (see
+// Local simulator for both matchday pairing algorithms — imports the
+// exact same pure functions the real generateRound Lambda uses (see
 // infra/lambda/shared/pairing.ts), so this tests the real logic rather
 // than a reimplementation. Match results are fabricated (a random winner
 // each match, see simulateScore below) purely to drive the same
-// standings-based bucketing the real system uses — this isn't a skill
-// model, just enough to exercise the pairing/repeat-avoidance mechanics
-// round over round.
+// standings-based bucketing Mexicano uses — this isn't a skill model,
+// just enough to exercise the pairing/repeat-avoidance mechanics round
+// over round.
 //
 // Usage:
 //   npx tsx infra/scripts/simulate-pairing.ts --players 16 --rounds 6
+//   npx tsx infra/scripts/simulate-pairing.ts --players 16 --rounds 6 --format americano
 //   npx tsx infra/scripts/simulate-pairing.ts --players 16 --rounds 6 --out report.md
 //
-// With no --out, the report is printed to stdout (redirect with `>` to
-// save it yourself).
+// --format defaults to mexicano. With no --out, the report is printed to
+// stdout (redirect with `>` to save it yourself).
 
 import { writeFileSync } from 'node:fs';
 import {
   buildPartnershipHistory,
   computeStandings,
+  courtsFromGlobalRandomPairing,
   courtsFromOrderedPlayers,
   randomOrder,
   rankByStandingsSoFar,
@@ -26,7 +28,14 @@ import {
   type PlayerStanding,
 } from '../lambda/shared/pairing';
 
-function parseArgs(argv: string[]): { players: number; rounds: number; out: string | null } {
+type Format = 'MEXICANO' | 'AMERICANO';
+
+function parseArgs(argv: string[]): {
+  players: number;
+  rounds: number;
+  format: Format;
+  out: string | null;
+} {
   const get = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
     return i === -1 ? undefined : argv[i + 1];
@@ -34,6 +43,7 @@ function parseArgs(argv: string[]): { players: number; rounds: number; out: stri
 
   const players = Number(get('--players') ?? get('-p'));
   const rounds = Number(get('--rounds') ?? get('-r'));
+  const formatArg = (get('--format') ?? get('-f') ?? 'mexicano').toUpperCase();
   const out = get('--out') ?? null;
 
   if (!Number.isInteger(players) || players <= 0 || players % 4 !== 0) {
@@ -42,8 +52,11 @@ function parseArgs(argv: string[]): { players: number; rounds: number; out: stri
   if (!Number.isInteger(rounds) || rounds <= 0) {
     throw new Error('--rounds must be a positive integer');
   }
+  if (formatArg !== 'MEXICANO' && formatArg !== 'AMERICANO') {
+    throw new Error('--format must be "mexicano" or "americano"');
+  }
 
-  return { players, rounds, out };
+  return { players, rounds, format: formatArg, out };
 }
 
 // Spreadsheet-style: A, B, ... Z, AA, AB, ... — "call the players by
@@ -108,18 +121,37 @@ function renderMatchesTable(matches: (MatchRecord & { court: number })[]): strin
 }
 
 function main() {
-  const { players: playerCount, rounds: roundCount, out } = parseArgs(process.argv.slice(2));
+  const {
+    players: playerCount,
+    rounds: roundCount,
+    format,
+    out,
+  } = parseArgs(process.argv.slice(2));
   const playerIds = Array.from({ length: playerCount }, (_, i) => playerLabel(i));
 
   const allMatches: (MatchRecord & { court: number })[] = [];
-  const reportSections: string[] = [`# Pairing Simulation — ${playerCount} players, ${roundCount} rounds`];
+  const reportSections: string[] = [
+    `# Pairing Simulation — ${playerCount} players, ${roundCount} rounds, ${format}`,
+  ];
 
   for (let round = 1; round <= roundCount; round++) {
-    const orderedPlayerIds = round === 1 ? randomOrder(playerIds) : rankByStandingsSoFar(allMatches, playerIds);
     const history =
-      round === 1 ? { previousRound: new Set<string>(), earlier: new Set<string>() } : buildPartnershipHistory(allMatches, round);
+      round === 1
+        ? { previousRound: new Set<string>(), earlier: new Set<string>() }
+        : buildPartnershipHistory(allMatches, round);
 
-    const courts = courtsFromOrderedPlayers(round, orderedPlayerIds, history);
+    // Mirrors generate-round/index.ts's own format branch: Mexicano
+    // ranks by standings and scopes avoidance to each bucket of 4;
+    // Americano pairs the whole field at once every round, since its
+    // groupings carry no meaning worth preserving.
+    const courts =
+      format === 'AMERICANO'
+        ? courtsFromGlobalRandomPairing(round, playerIds, history)
+        : courtsFromOrderedPlayers(
+            round,
+            round === 1 ? randomOrder(playerIds) : rankByStandingsSoFar(allMatches, playerIds),
+            history
+          );
 
     const roundMatches: (MatchRecord & { court: number })[] = courts.map((c) => ({
       round: c.round,

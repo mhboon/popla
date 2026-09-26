@@ -107,38 +107,46 @@ Two supported formats, selectable per matchday:
 3. Participants are bucketed into groups of 4 in rank order: ranks 1–4 to
    one court, ranks 5–8 to the next, and so on.
 4. Within each group of 4, the two teams (partner/opponent assignment) are
-   picked per the Partner Assignment rule below.
+   randomized — not a fixed seeding rule — but weighted against a
+   partner-repeat rule (see below) **scoped to that one group of 4**:
+   bucket composition is meaningful here (it's the standings-based
+   ranking), so avoidance never reaches outside whichever 4 players
+   already landed in a bucket together.
 5. Repeat steps 2–4 for each subsequent round the admin generates
    (re-rank → re-bucket → randomize within bucket each time), until the
    admin ends the matchday.
 
 **Americano** (fully random):
-- Every round, all N participants are randomly reshuffled into new groups
-  of 4 — independent of standings or which group anyone was in before.
-  Within each freshly-formed group, the two teams are picked per the same
-  Partner Assignment rule below.
+- Every round, partnerships are decided across **the entire field at
+  once**, weighted against the same partner-repeat rule (see below) but
+  with no bucket boundary: since Americano's groupings carry no meaning
+  (unlike Mexicano's standings-based buckets), there's no reason to
+  confine avoidance to whichever 4 players happen to already be grouped
+  — the whole field is searched for a repeat-free partner instead.
+- Once every participant has a partner this way, the resulting N/2
+  partnerships are randomly paired up, two at a time, into courts — which
+  partnership faces which other partnership is arbitrary and unrelated
+  to history (see Partner Repeat Rule below: opponents are never
+  tracked).
 
-**Partner Assignment** (both formats, within a single already-formed
-group of 4): the 2v2 split is randomized — not a fixed seeding rule —
-but weighted to avoid repeat partnerships *within that same group*, this
-matchday only:
+**Partner Repeat Rule** (what "weighted against repeats" means above,
+for both formats):
 - **Hard rule**: never reconstruct a partnership from the immediately
-  previous round. Always possible — each of the 4 players has at most
-  one partner from that round, so at most one of the 3 possible splits
-  can ever collide with it.
-- **Soft rule**: among whatever's left, prefer the split with the fewest
-  partnerships repeated from any *earlier* round (not the previous one).
-  If every remaining option repeats something, that's accepted — this is
-  a preference, not a guarantee.
-- This only ever looks within the one group of 4 being split — it never
-  reaches into a different court's group to avoid a repeat, and it has
-  no effect on which players land in a group together in the first place
-  (for Mexicano that's the standings-based ranking above; for Americano
-  it's the fully random reshuffle, which never tries to keep or split up
-  any particular group of 4 based on history — only who partners with
-  whom *inside* whatever group they're randomly placed into is
-  protected against repeats). Opponent repeats (facing the same pair
-  across the net again) are never tracked or avoided, only partnerships.
+  previous round.
+  - Mexicano: always possible within a single bucket of 4 — each player
+    has at most one partner from that round, so at most one of the 3
+    possible splits can ever collide with it.
+  - Americano: a repeat-free pairing across the whole field always
+    exists in principle (the same reasoning behind round-robin
+    scheduling), but isn't guaranteed to be *found* on the first try —
+    unlike a single bucket of 4, there's no simple enumeration, so this
+    is a best-effort search, not a guarantee.
+- **Soft rule**: among whatever's left, prefer whichever repeats the
+  fewest partnerships from any *earlier* round (not the previous one).
+  If every option available repeats something, that's accepted — this
+  is a preference, not a guarantee, for either format.
+- Opponent repeats (facing the same pair across the net again) are never
+  tracked or avoided, only partnerships.
 
 ### Day Ranking (within a matchday)
 
