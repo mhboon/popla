@@ -107,28 +107,38 @@ Two supported formats, selectable per matchday:
 3. Participants are bucketed into groups of 4 in rank order: ranks 1–4 to
    one court, ranks 5–8 to the next, and so on.
 4. Within each group of 4, the two teams (partner/opponent assignment) are
-   randomized — not a fixed seeding rule — but weighted to avoid repeat
-   partnerships *within that same group*, this matchday only:
-   - **Hard rule**: never reconstruct a partnership from the immediately
-     previous round. Always possible — each of the 4 players has at most
-     one partner from that round, so at most one of the 3 possible splits
-     can ever collide with it.
-   - **Soft rule**: among whatever's left, prefer the split with the
-     fewest partnerships repeated from any *earlier* round (not the
-     previous one). If every remaining option repeats something, that's
-     accepted — this is a preference, not a guarantee.
-   - This only ever looks within the one group of 4 being split — it
-     never reaches into a different court's group to avoid a repeat, and
-     it has no effect on which players land in a group together in the
-     first place (that's entirely the standings-based ranking above).
+   picked per the Partner Assignment rule below.
 5. Repeat steps 2–4 for each subsequent round the admin generates
    (re-rank → re-bucket → randomize within bucket each time), until the
    admin ends the matchday.
 
 **Americano** (fully random):
-- Every round, all N participants are randomly shuffled into courts and
-  team pairings, independent of standings or prior rounds. No attempt is
-  made to avoid repeat partners/opponents across rounds.
+- Every round, all N participants are randomly reshuffled into new groups
+  of 4 — independent of standings or which group anyone was in before.
+  Within each freshly-formed group, the two teams are picked per the same
+  Partner Assignment rule below.
+
+**Partner Assignment** (both formats, within a single already-formed
+group of 4): the 2v2 split is randomized — not a fixed seeding rule —
+but weighted to avoid repeat partnerships *within that same group*, this
+matchday only:
+- **Hard rule**: never reconstruct a partnership from the immediately
+  previous round. Always possible — each of the 4 players has at most
+  one partner from that round, so at most one of the 3 possible splits
+  can ever collide with it.
+- **Soft rule**: among whatever's left, prefer the split with the fewest
+  partnerships repeated from any *earlier* round (not the previous one).
+  If every remaining option repeats something, that's accepted — this is
+  a preference, not a guarantee.
+- This only ever looks within the one group of 4 being split — it never
+  reaches into a different court's group to avoid a repeat, and it has
+  no effect on which players land in a group together in the first place
+  (for Mexicano that's the standings-based ranking above; for Americano
+  it's the fully random reshuffle, which never tries to keep or split up
+  any particular group of 4 based on history — only who partners with
+  whom *inside* whatever group they're randomly placed into is
+  protected against repeats). Opponent repeats (facing the same pair
+  across the net again) are never tracked or avoided, only partnerships.
 
 ### Day Ranking (within a matchday)
 
