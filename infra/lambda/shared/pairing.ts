@@ -107,12 +107,13 @@ function pickSplit(group: [string, string, string, string], history: Partnership
 /**
  * Buckets an already-ordered list of player IDs into groups of 4 (in
  * order), one court per group, and picks the 2-vs-2 team split within
- * each group. Used for both formats:
- *  - Mexicano: pass players ordered by current standings (or randomly for
- *    round 1), with the real partnership history — see pickSplit above.
- *  - Americano: pass a freshly randomized order every round, with an
- *    empty history (SPEC.md documents Americano as intentionally not
- *    avoiding repeats).
+ * each group, weighed against `history` — see pickSplit above. Used for
+ * Mexicano: players are ordered by current standings (or randomly for
+ * round 1), and the avoidance is deliberately scoped to whichever 4
+ * happen to land in a bucket together — bucket composition there is
+ * meaningful (it's the standings-based ranking), so avoidance shouldn't
+ * reach outside it. See courtsFromGlobalRandomPairing below for
+ * Americano, whose groupings carry no such meaning.
  */
 export function courtsFromOrderedPlayers(
   round: number,
@@ -132,6 +133,120 @@ export function courtsFromOrderedPlayers(
       court: i / 4 + 1,
       team1PlayerIds: team1,
       team2PlayerIds: team2,
+    });
+  }
+  return courts;
+}
+
+function violatesPreviousRound(a: string, b: string, history: PartnershipHistory): boolean {
+  return history.previousRound.has(partnershipKey(a, b));
+}
+
+function violatesEarlierRound(a: string, b: string, history: PartnershipHistory): boolean {
+  return history.earlier.has(partnershipKey(a, b));
+}
+
+// One random pass at pairing up the whole field: each player (processed
+// in random order) picks a random still-unpaired partner, preferring one
+// that doesn't repeat the previous round, then preferring one that
+// doesn't repeat any earlier round either — same hard/soft rule as
+// pickSplit, just applied across all N players at once instead of one
+// bucket of 4. Unlike a bucket of 4, there's no guarantee a single greedy
+// pass avoids every previous-round repeat (an unlucky early pick can
+// leave two ex-partners as the only players left for each other) — see
+// buildGlobalPartnerships below, which retries this and keeps the best.
+function greedyGlobalPartnerships(
+  playerIds: string[],
+  history: PartnershipHistory
+): [string, string][] {
+  const remaining = shuffle(playerIds);
+  const partnerships: [string, string][] = [];
+
+  while (remaining.length > 0) {
+    const player = remaining.shift()!;
+    const withoutPreviousRound = remaining.filter((c) => !violatesPreviousRound(player, c, history));
+    const pool = withoutPreviousRound.length > 0 ? withoutPreviousRound : remaining;
+    const withoutEarlier = pool.filter((c) => !violatesEarlierRound(player, c, history));
+    const finalPool = withoutEarlier.length > 0 ? withoutEarlier : pool;
+
+    const partner = finalPool[Math.floor(Math.random() * finalPool.length)];
+    partnerships.push([player, partner]);
+    remaining.splice(remaining.indexOf(partner), 1);
+  }
+
+  return partnerships;
+}
+
+function countViolations(
+  partnerships: [string, string][],
+  history: PartnershipHistory
+): { previousRound: number; earlier: number } {
+  let previousRoundCount = 0;
+  let earlierCount = 0;
+  for (const [a, b] of partnerships) {
+    if (violatesPreviousRound(a, b, history)) previousRoundCount++;
+    else if (violatesEarlierRound(a, b, history)) earlierCount++;
+  }
+  return { previousRound: previousRoundCount, earlier: earlierCount };
+}
+
+// Bounded retries rather than a guarantee: a repeat-free (or best-
+// possible) pairing across the whole field always exists in theory (the
+// classic round-robin-scheduling result: a complete graph minus a
+// perfect matching always has a perfect matching of its own), but
+// finding one isn't as trivial as the 3-way enumeration a bucket of 4
+// allows. Retrying a cheap random greedy pass a bounded number of times
+// and keeping the best is simple and, in practice, reliably finds a
+// clean pairing well within this budget for realistic field sizes.
+const GLOBAL_PAIRING_ATTEMPTS = 25;
+
+function buildGlobalPartnerships(
+  playerIds: string[],
+  history: PartnershipHistory
+): [string, string][] {
+  let best = greedyGlobalPartnerships(playerIds, history);
+  let bestScore = countViolations(best, history);
+
+  for (let attempt = 1; attempt < GLOBAL_PAIRING_ATTEMPTS; attempt++) {
+    if (bestScore.previousRound === 0 && bestScore.earlier === 0) break;
+    const candidate = greedyGlobalPartnerships(playerIds, history);
+    const score = countViolations(candidate, history);
+    if (
+      score.previousRound < bestScore.previousRound ||
+      (score.previousRound === bestScore.previousRound && score.earlier < bestScore.earlier)
+    ) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Americano: pairs up the whole field at once (see buildGlobalPartnerships),
+ * then randomly groups the resulting partnerships two at a time into
+ * courts — which partnerships end up facing which others is arbitrary
+ * (opponent repeats are never tracked, only partnerships, per SPEC.md).
+ */
+export function courtsFromGlobalRandomPairing(
+  round: number,
+  playerIds: string[],
+  history: PartnershipHistory
+): CourtAssignment[] {
+  if (playerIds.length === 0 || playerIds.length % 4 !== 0) {
+    throw new Error('participant count must be a non-zero multiple of 4');
+  }
+
+  const partnerships = shuffle(buildGlobalPartnerships(playerIds, history));
+
+  const courts: CourtAssignment[] = [];
+  for (let i = 0; i < partnerships.length; i += 2) {
+    courts.push({
+      round,
+      court: i / 2 + 1,
+      team1PlayerIds: partnerships[i],
+      team2PlayerIds: partnerships[i + 1],
     });
   }
   return courts;

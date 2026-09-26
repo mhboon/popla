@@ -214,17 +214,24 @@ one.
   runs the Mexicano or Americano pairing algorithm per `SPEC.md` — for
   both formats, this also derives a partnership history (this matchday's
   prior `Matches`, split into "immediately previous round" vs "earlier")
-  and weighs each group-of-4's 2v2 split against it (`buildPartnershipHistory`
-  + `courtsFromOrderedPlayers` in `infra/lambda/shared/pairing.ts`, which
+  and weighs partner assignment against it, but at different scopes
+  (`buildPartnershipHistory` in `infra/lambda/shared/pairing.ts`, which
   also holds `rankByStandingsSoFar`/`computeStandings` now — both pulled
   out of this Lambda so `infra/scripts/simulate-pairing.ts`, a local CLI
-  for dry-running the pairing algorithm over synthetic players/rounds,
-  can import the exact same logic instead of reimplementing it). Only
-  which players land in a group of 4 together differs by format
-  (Mexicano: standings rank; Americano: a fresh random shuffle every
-  round, ignoring history entirely) — the partner-repeat avoidance inside
-  an already-formed group is identical either way. Batch-writes the
-  `Matches` items for that round. On round 1 specifically,
+  for dry-running either format over synthetic players/rounds, can import
+  the exact same logic instead of reimplementing it):
+  - Mexicano: `courtsFromOrderedPlayers` buckets standings-ranked players
+    into groups of 4, then picks each bucket's 2v2 split against the
+    history — scoped to that one bucket only, since bucket composition is
+    meaningful (it's the ranking).
+  - Americano: `courtsFromGlobalRandomPairing` instead pairs up the
+    entire field at once against the history (a bounded-retry greedy
+    search, kept simple since a bucket-of-4's easy 3-way enumeration
+    doesn't apply field-wide), then randomly groups the resulting
+    partnerships two at a time into courts — Americano's groupings carry
+    no meaning, so avoidance isn't confined to any bucket.
+
+  Batch-writes the `Matches` items for that round. On round 1 specifically,
   this is also where "closing registration" now happens, folded into
   starting play instead of being its own mutation: validates a non-zero
   multiple of 4 `JOINING` participants (throwing otherwise, before any
