@@ -82,14 +82,12 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
       ? randomOrder(participantIds)
       : rankByStandingsSoFar(priorMatches, participantIds);
 
-  // Repeat-partner avoidance only applies to Mexicano — Americano is
-  // documented in SPEC.md as intentionally not avoiding repeats, so it
-  // gets an empty history and courtsFromOrderedPlayers's split picking
-  // degenerates back to a plain random 2v2 split.
-  const history: PartnershipHistory =
-    matchday.format === 'MEXICANO'
-      ? buildPartnershipHistory(priorMatches, round)
-      : { previousRound: new Set(), earlier: new Set() };
+  // Repeat-partner avoidance applies to both formats now (see SPEC.md's
+  // Match Generation) — only *which players land in a group together*
+  // differs: Mexicano ranks by standings, Americano reshuffles fully at
+  // random every round. Round 1 has no prior matches either way, so
+  // history is naturally empty there regardless of format.
+  const history: PartnershipHistory = buildPartnershipHistory(priorMatches, round);
 
   const courts = courtsFromOrderedPlayers(round, orderedPlayerIds, history);
 
