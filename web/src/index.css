@@ -534,10 +534,6 @@ button:disabled {
   letter-spacing: 0.02em;
 }
 
-.scoreboard-chip-muted {
-  background: var(--color-slate);
-}
-
 /* Larger variant for the home page's open-matchday hero score — same
    court-deep/ball-yellow treatment as .scoreboard-chip, just scaled up
    so the registered count reads like a live score rather than a label. */
@@ -670,10 +666,6 @@ button:disabled {
   color: var(--color-slate);
   font-weight: 600;
   font-size: 0.9rem;
-}
-
-.participant-count-valid .scoreboard-chip {
-  background: var(--color-court);
 }
 
 .share-button {
