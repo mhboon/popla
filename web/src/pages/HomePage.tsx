@@ -89,10 +89,14 @@ export function HomePage() {
             <p>
               {formatMatchdayWhen(matchday)} · {matchday.status === 'SETUP' ? 'Open' : 'Started'} ·{' '}
               {matchday.selfRegistrationEnabled ? 'Self-registration open' : 'Admin-managed'}
-              {matchday.maxParticipants != null && ` · ${matchday.maxParticipants} max`}
             </p>
-            <p>
-              {registeredCount} registered · {waitlistedCount} waiting list
+            <p className="matchday-summary-score">
+              <span className="scoreboard-chip scoreboard-chip-lg">{registeredCount}</span>
+              <span>
+                registered
+                {matchday.maxParticipants != null && ` of ${matchday.maxParticipants}`}
+                {waitlistedCount > 0 && ` · ${waitlistedCount} waiting list`}
+              </span>
             </p>
             {statusLine && <p className="matchday-summary-status">{statusLine}</p>}
           </Link>

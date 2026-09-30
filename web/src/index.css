@@ -135,6 +135,7 @@ a {
 }
 
 .app-header {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -143,6 +144,24 @@ a {
   padding: var(--space-3) var(--space-4);
   background: var(--color-court-deep);
   box-shadow: var(--shadow-sm);
+}
+
+/* Broadcast-graphic accent: a single diagonal wedge trailing off the
+   header, like a lower-third tucking away. Purely decorative — its own
+   pseudo-element below the header box, not a clip-path on the header
+   itself, so it never touches hit-testing on the logo/nav above it and
+   just tracks however tall the header gets (e.g. the mobile nav-open
+   state). */
+.app-header::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 18px;
+  background: var(--color-court-deep);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  pointer-events: none;
 }
 
 .app-header .brand {
@@ -515,8 +534,23 @@ button:disabled {
   letter-spacing: 0.02em;
 }
 
-.scoreboard-chip-muted {
-  background: var(--color-slate);
+/* Larger variant for the home page's open-matchday hero score — same
+   court-deep/ball-yellow treatment as .scoreboard-chip, just scaled up
+   so the registered count reads like a live score rather than a label. */
+.scoreboard-chip-lg {
+  min-width: 2.6rem;
+  height: 2.6rem;
+  padding: 0 0.75rem;
+  font-size: 1.35rem;
+}
+
+.matchday-summary-score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  color: var(--color-slate);
+  font-size: 0.9rem;
 }
 
 /* ---- Status badges ---- */
@@ -632,10 +666,6 @@ button:disabled {
   color: var(--color-slate);
   font-weight: 600;
   font-size: 0.9rem;
-}
-
-.participant-count-valid .scoreboard-chip {
-  background: var(--color-court);
 }
 
 .share-button {
