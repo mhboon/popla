@@ -89,41 +89,61 @@ export const handler = async (event: {
       return { matchdayId, playerId, status: 'JOINING', updatedAt: now };
     }
 
-    try {
-      await ddb.send(
-        new TransactWriteCommand({
-          TransactItems: [
-            {
-              Update: {
-                TableName: MATCHDAYS_TABLE,
-                Key: { matchdayId },
-                UpdateExpression: 'ADD joinedCount :one',
-                ConditionExpression: 'joinedCount < maxParticipants',
-                ExpressionAttributeValues: { ':one': 1 },
-              },
-            },
-            {
-              Put: {
-                TableName: PARTICIPANTS_TABLE,
-                Item: { matchdayId, playerId, status: 'JOINING', updatedAt: now },
-              },
-            },
-          ],
-        })
-      );
-      return { matchdayId, playerId, status: 'JOINING', updatedAt: now };
-    } catch (err) {
-      if (err instanceof TransactionCanceledException) {
+    // The frontend's "Update roster" action adds several players in
+    // parallel (one setMatchdayJoining call each), so multiple of these
+    // transactions can land on the same Matchdays item at once. DynamoDB
+    // cancels the losers of that race with TransactionCanceledException
+    // too — but its CancellationReasons[0].Code distinguishes the cap
+    // genuinely being full (ConditionalCheckFailed) from a transient
+    // collision with another concurrent transaction on the same item
+    // (TransactionConflict). Only the former means WAITLISTED; the
+    // latter just needs a retry against the now-current joinedCount.
+    const maxAttempts = 5;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
         await ddb.send(
-          new PutCommand({
-            TableName: PARTICIPANTS_TABLE,
-            Item: { matchdayId, playerId, status: 'WAITLISTED', updatedAt: now },
+          new TransactWriteCommand({
+            TransactItems: [
+              {
+                Update: {
+                  TableName: MATCHDAYS_TABLE,
+                  Key: { matchdayId },
+                  UpdateExpression: 'ADD joinedCount :one',
+                  ConditionExpression: 'joinedCount < maxParticipants',
+                  ExpressionAttributeValues: { ':one': 1 },
+                },
+              },
+              {
+                Put: {
+                  TableName: PARTICIPANTS_TABLE,
+                  Item: { matchdayId, playerId, status: 'JOINING', updatedAt: now },
+                },
+              },
+            ],
           })
         );
-        return { matchdayId, playerId, status: 'WAITLISTED', updatedAt: now };
+        return { matchdayId, playerId, status: 'JOINING', updatedAt: now };
+      } catch (err) {
+        if (err instanceof TransactionCanceledException) {
+          const capReasonCode = err.CancellationReasons?.[0]?.Code;
+          if (capReasonCode === 'ConditionalCheckFailed') {
+            await ddb.send(
+              new PutCommand({
+                TableName: PARTICIPANTS_TABLE,
+                Item: { matchdayId, playerId, status: 'WAITLISTED', updatedAt: now },
+              })
+            );
+            return { matchdayId, playerId, status: 'WAITLISTED', updatedAt: now };
+          }
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, attempt * (20 + Math.random() * 30)));
+            continue;
+          }
+        }
+        throw err;
       }
-      throw err;
     }
+    throw new Error(`Could not join matchday ${matchdayId} due to contention — please retry.`);
   }
 
   // joining: false
