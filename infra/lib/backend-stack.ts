@@ -475,6 +475,28 @@ export class PoplaBackendStack extends Stack {
       ),
     });
 
+    const reconcileMatchdayRosterFn = new NodejsFunction(this, 'ReconcileMatchdayRosterFn', {
+      entry: path.join(__dirname, '../lambda/reconcile-matchday-roster/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: lambdaEnv,
+    });
+    matchdaysTable.grantReadWriteData(reconcileMatchdayRosterFn);
+    matchdayParticipantsTable.grantReadWriteData(reconcileMatchdayRosterFn);
+
+    const reconcileMatchdayRosterDS = api.addLambdaDataSource(
+      'ReconcileMatchdayRosterDataSource',
+      reconcileMatchdayRosterFn
+    );
+    reconcileMatchdayRosterDS.createResolver('MutationReconcileMatchdayRosterResolver', {
+      typeName: 'Mutation',
+      fieldName: 'reconcileMatchdayRoster',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.reconcileMatchdayRoster.js')
+      ),
+    });
+
     // ---- Player provisioning + admin management Lambda resolvers ----
     // createPlayer/updatePlayer/promoteToAdmin/demoteFromAdmin/
     // listAdminPhoneNumbers all provision or inspect Cognito state

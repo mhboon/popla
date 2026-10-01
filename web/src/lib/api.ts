@@ -288,6 +288,14 @@ export function updateMatchday(
   ).then((d) => d.updateMatchday);
 }
 
+export function reconcileMatchdayRoster(idToken: string, matchdayId: string) {
+  return graphqlRequest<{ reconcileMatchdayRoster: Matchday }>(
+    idToken,
+    `mutation($matchdayId: ID!) { reconcileMatchdayRoster(matchdayId: $matchdayId) { ${MATCHDAY_FIELDS} } }`,
+    { matchdayId }
+  ).then((d) => d.reconcileMatchdayRoster);
+}
+
 export function closeMatchday(idToken: string, matchdayId: string) {
   return graphqlRequest<{ closeMatchday: Matchday }>(
     idToken,
