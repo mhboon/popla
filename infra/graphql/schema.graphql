@@ -210,6 +210,18 @@ type Mutation {
   # only ever target their own player.
   setMatchdayJoining(matchdayId: ID!, playerId: ID, joining: Boolean!): MatchdayParticipant!
 
+  # Admin-only maintenance: recomputes JOINING vs WAITLISTED against
+  # maxParticipants from the actual MatchdayParticipants rows and
+  # corrects any drift — promoting the longest-waiting players into open
+  # seats, or (should JOINING ever exceed the cap) waitlisting the most
+  # recently joined back off it. Exists because concurrent
+  # setMatchdayJoining calls (e.g. the admin UI's bulk roster update)
+  # can occasionally leave that state inconsistent — see
+  # infra/lambda/set-matchday-joining's TransactionConflict handling.
+  # Only valid while the matchday is SETUP; a no-op on an uncapped one.
+  reconcileMatchdayRoster(matchdayId: ID!): Matchday!
+    @aws_auth(cognito_groups: ["Admins"])
+
   # Only allowed while the matchday is still SETUP (before generateRound
   # has created round 1) — editing date/format/settings after play has
   # started would leave already-generated Matches inconsistent. Roster

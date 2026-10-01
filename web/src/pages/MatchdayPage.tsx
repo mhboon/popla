@@ -11,6 +11,7 @@ import {
   listMatches,
   listPlayerNames,
   listPlayers,
+  reconcileMatchdayRoster,
   recordSetResult,
   setMatchdayJoining,
 } from '../lib/api';
@@ -684,6 +685,11 @@ function MatchdaySetupPanel({
         ...toAdd.map((playerId) => setMatchdayJoining(idToken, { matchdayId, playerId, joining: true })),
         ...toRemove.map((playerId) => setMatchdayJoining(idToken, { matchdayId, playerId, joining: false })),
       ]);
+      // Those calls can race each other on the same matchday counter
+      // (see infra/lambda/set-matchday-joining) and occasionally leave a
+      // player wrongly waitlisted with open seats still free — reconcile
+      // against the actual roster before refreshing.
+      await reconcileMatchdayRoster(idToken, matchdayId);
       await onSaved();
       setRosterSaved(true);
     } catch (err) {
