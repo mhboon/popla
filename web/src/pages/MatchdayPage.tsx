@@ -13,6 +13,7 @@ import {
   listPlayers,
   reconcileMatchdayRoster,
   recordSetResult,
+  regenerateRound,
   setMatchdayJoining,
 } from '../lib/api';
 import { BackLink } from '../components/BackLink';
@@ -100,6 +101,8 @@ export function MatchdayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
   const [closing, setClosing] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'ranking'>('matches');
@@ -167,6 +170,20 @@ export function MatchdayPage() {
     }
   }
 
+  async function handleRegenerateRound(round: number) {
+    if (!matchdayId) return;
+    setError(null);
+    setRegenerating(true);
+    try {
+      await regenerateRound(idToken, matchdayId, round);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to regenerate the round');
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   async function handleCloseMatchday() {
     if (!matchdayId) return;
     setError(null);
@@ -225,6 +242,11 @@ export function MatchdayPage() {
   // an already-closed matchday.
   const currentRoundComplete =
     isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
+  // Regeneration is only offered while the round is untouched — the
+  // moment a single set is recorded, reshuffling would discard a real
+  // result, not just an unplayed pairing.
+  const currentRoundUntouched =
+    isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'PENDING');
   // A closed matchday with no per-match data (e.g. imported historical
   // ones — see infra/scripts/import-history.ts) has nothing for this tab
   // to show; an open one always does, even at zero matches, since that's
@@ -314,11 +336,36 @@ export function MatchdayPage() {
                   <h2>
                     Round <span className="scoreboard-chip">{round}</span>
                   </h2>
-                  <ShareButton
-                    title="Popla Cup matches"
-                    text={formatRoundShare(matchday, round, roundMatches, playerName)}
-                  />
+                  <div className="section-heading-actions">
+                    {isAdmin && round === currentRound && currentRoundUntouched && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingRegenerate(true)}
+                        disabled={regenerating}
+                      >
+                        {regenerating ? 'Regenerating…' : 'Regenerate round'}
+                      </button>
+                    )}
+                    <ShareButton
+                      title="Popla Cup matches"
+                      text={formatRoundShare(matchday, round, roundMatches, playerName)}
+                    />
+                  </div>
                 </div>
+                {isAdmin && round === currentRound && (
+                  <ConfirmDialog
+                    open={confirmingRegenerate}
+                    title={`Regenerate round ${round}?`}
+                    message="Re-randomizes every court's pairing for this round. Only available because nobody's score has been recorded yet."
+                    confirmLabel="Regenerate round"
+                    busy={regenerating}
+                    onCancel={() => setConfirmingRegenerate(false)}
+                    onConfirm={() => {
+                      setConfirmingRegenerate(false);
+                      handleRegenerateRound(round);
+                    }}
+                  />
+                )}
                 <div className="match-grid">
                   {roundMatches.map((match) => (
                     <MatchCard
