@@ -244,6 +244,33 @@ type Mutation {
   generateRound(matchdayId: ID!): [Match!]!
     @aws_auth(cognito_groups: ["Admins"])
 
+  # Re-randomizes an already-generated round's pairings and court
+  # assignments from scratch — only while every one of that round's
+  # matches is still PENDING (none recorded yet). Repeat-partner
+  # avoidance is recomputed the same way generateRound does, against
+  # every *other* round's completed partnerships. Lets an admin reshuffle
+  # a round nobody's walked onto court for yet (e.g. a participant
+  # scratched late, or the first shuffle just looked off) without
+  # touching anything already played.
+  regenerateRound(matchdayId: ID!, round: Int!): [Match!]!
+    @aws_auth(cognito_groups: ["Admins"])
+
+  # Swaps two players' court/team slots within the round's existing
+  # matches — e.g. playerId1 on court 2's team1 and playerId2 on court
+  # 4's team2 trade places. Only the active round (the highest round
+  # number generated so far) can be switched in, on an IN_PROGRESS
+  # matchday — same editability as recordSetResult. Unlike
+  # regenerateRound, this works *even after* the affected match(es)
+  # already have a recorded score: the score stays with the court slot,
+  # now credited to whoever's standing in it after the swap. For
+  # correcting who actually played where, never a match's result.
+  switchRoundPlayers(
+    matchdayId: ID!
+    round: Int!
+    playerId1: ID!
+    playerId2: ID!
+  ): [Match!]! @aws_auth(cognito_groups: ["Admins"])
+
   recordSetResult(
     matchdayId: ID!
     round: Int!

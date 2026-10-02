@@ -330,6 +330,32 @@ export function generateRound(idToken: string, matchdayId: string) {
   ).then((d) => d.generateRound);
 }
 
+export function regenerateRound(idToken: string, matchdayId: string, round: number) {
+  return graphqlRequest<{ regenerateRound: Match[] }>(
+    idToken,
+    `mutation($matchdayId: ID!, $round: Int!) {
+      regenerateRound(matchdayId: $matchdayId, round: $round) { ${MATCH_FIELDS} }
+    }`,
+    { matchdayId, round }
+  ).then((d) => d.regenerateRound);
+}
+
+export function switchRoundPlayers(
+  idToken: string,
+  matchdayId: string,
+  round: number,
+  playerId1: string,
+  playerId2: string
+) {
+  return graphqlRequest<{ switchRoundPlayers: Match[] }>(
+    idToken,
+    `mutation($matchdayId: ID!, $round: Int!, $playerId1: ID!, $playerId2: ID!) {
+      switchRoundPlayers(matchdayId: $matchdayId, round: $round, playerId1: $playerId1, playerId2: $playerId2) { ${MATCH_FIELDS} }
+    }`,
+    { matchdayId, round, playerId1, playerId2 }
+  ).then((d) => d.switchRoundPlayers);
+}
+
 export function recordSetResult(
   idToken: string,
   input: { matchdayId: string; round: number; court: number; team1Games: number; team2Games: number }

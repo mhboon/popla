@@ -7,15 +7,7 @@ import {
   UpdateCommand,
   TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
-import {
-  buildPartnershipHistory,
-  courtsFromGlobalRandomPairing,
-  courtsFromOrderedPlayers,
-  randomOrder,
-  rankByStandingsSoFar,
-  type MatchRecord,
-  type PartnershipHistory,
-} from '../shared/pairing';
+import { buildCourtsForRound, type MatchRecord } from '../shared/pairing';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -85,17 +77,10 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
   // meaning, so it pairs up the entire field at once instead, with no
   // bucket boundary constraining which players can avoid a repeat with
   // which. Round 1 has no prior matches either way, so history is
-  // naturally empty there regardless of format.
-  const history: PartnershipHistory = buildPartnershipHistory(priorMatches, round);
-
-  const courts =
-    matchday.format === 'AMERICANO'
-      ? courtsFromGlobalRandomPairing(round, participantIds, history)
-      : courtsFromOrderedPlayers(
-          round,
-          round === 1 ? randomOrder(participantIds) : rankByStandingsSoFar(priorMatches, participantIds),
-          history
-        );
+  // naturally empty there regardless of format. priorMatches is every
+  // match generated so far, which (unlike regenerate-round) is always
+  // every round *before* this one, since this is always the next round.
+  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches);
 
   await ddb.send(
     new BatchWriteCommand({

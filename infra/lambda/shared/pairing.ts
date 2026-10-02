@@ -321,3 +321,28 @@ export function rankByStandingsSoFar(
     return sb.setsWon - sa.setsWon;
   });
 }
+
+/**
+ * Builds one round's court assignments for either format — the shared
+ * core of generate-round (the next round) and regenerate-round (an
+ * existing, not-yet-played round being reshuffled). `priorMatches` must
+ * exclude `round` itself, so its matches are never treated as their own
+ * history: buildPartnershipHistory compares every match's round against
+ * `round` to sort it into "previous round" (hard rule) or "earlier"
+ * (soft rule) — see SPEC.md's Match Generation and Partner Repeat Rule.
+ */
+export function buildCourtsForRound(
+  format: string,
+  round: number,
+  participantIds: string[],
+  priorMatches: MatchRecord[]
+): CourtAssignment[] {
+  const history = buildPartnershipHistory(priorMatches, round);
+  return format === 'AMERICANO'
+    ? courtsFromGlobalRandomPairing(round, participantIds, history)
+    : courtsFromOrderedPlayers(
+        round,
+        round === 1 ? randomOrder(participantIds) : rankByStandingsSoFar(priorMatches, participantIds),
+        history
+      );
+}

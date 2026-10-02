@@ -13,7 +13,9 @@ import {
   listPlayers,
   reconcileMatchdayRoster,
   recordSetResult,
+  regenerateRound,
   setMatchdayJoining,
+  switchRoundPlayers,
 } from '../lib/api';
 import { BackLink } from '../components/BackLink';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -100,6 +102,14 @@ export function MatchdayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
+  // Which round's "switch players" form is open, if any — only ever the
+  // active round in practice, since the toggle button only renders there.
+  const [switchOpenRound, setSwitchOpenRound] = useState<number | null>(null);
+  const [switchPlayer1, setSwitchPlayer1] = useState('');
+  const [switchPlayer2, setSwitchPlayer2] = useState('');
+  const [switching, setSwitching] = useState(false);
   const [closing, setClosing] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'ranking'>('matches');
@@ -167,6 +177,37 @@ export function MatchdayPage() {
     }
   }
 
+  async function handleRegenerateRound(round: number) {
+    if (!matchdayId) return;
+    setError(null);
+    setRegenerating(true);
+    try {
+      await regenerateRound(idToken, matchdayId, round);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to regenerate the round');
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  async function handleSwitchPlayers(round: number) {
+    if (!matchdayId || !switchPlayer1 || !switchPlayer2) return;
+    setError(null);
+    setSwitching(true);
+    try {
+      await switchRoundPlayers(idToken, matchdayId, round, switchPlayer1, switchPlayer2);
+      setSwitchOpenRound(null);
+      setSwitchPlayer1('');
+      setSwitchPlayer2('');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to switch players');
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   async function handleCloseMatchday() {
     if (!matchdayId) return;
     setError(null);
@@ -225,6 +266,11 @@ export function MatchdayPage() {
   // an already-closed matchday.
   const currentRoundComplete =
     isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'COMPLETE');
+  // Regeneration is only offered while the round is untouched — the
+  // moment a single set is recorded, reshuffling would discard a real
+  // result, not just an unplayed pairing.
+  const currentRoundUntouched =
+    isOpen && currentRound > 0 && currentRoundMatches.every((m) => m.status === 'PENDING');
   // A closed matchday with no per-match data (e.g. imported historical
   // ones — see infra/scripts/import-history.ts) has nothing for this tab
   // to show; an open one always does, even at zero matches, since that's
@@ -314,11 +360,60 @@ export function MatchdayPage() {
                   <h2>
                     Round <span className="scoreboard-chip">{round}</span>
                   </h2>
-                  <ShareButton
-                    title="Popla Cup matches"
-                    text={formatRoundShare(matchday, round, roundMatches, playerName)}
-                  />
+                  <div className="section-heading-actions">
+                    {isAdmin && round === currentRound && currentRoundUntouched && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingRegenerate(true)}
+                        disabled={regenerating}
+                      >
+                        {regenerating ? 'Regenerating…' : 'Regenerate round'}
+                      </button>
+                    )}
+                    {isAdmin && !readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSwitchPlayer1('');
+                          setSwitchPlayer2('');
+                          setSwitchOpenRound(switchOpenRound === round ? null : round);
+                        }}
+                      >
+                        {switchOpenRound === round ? 'Cancel switch' : 'Switch players'}
+                      </button>
+                    )}
+                    <ShareButton
+                      title="Popla Cup matches"
+                      text={formatRoundShare(matchday, round, roundMatches, playerName)}
+                    />
+                  </div>
                 </div>
+                {isAdmin && round === currentRound && (
+                  <ConfirmDialog
+                    open={confirmingRegenerate}
+                    title={`Regenerate round ${round}?`}
+                    message="Re-randomizes every court's pairing for this round. Only available because nobody's score has been recorded yet."
+                    confirmLabel="Regenerate round"
+                    busy={regenerating}
+                    onCancel={() => setConfirmingRegenerate(false)}
+                    onConfirm={() => {
+                      setConfirmingRegenerate(false);
+                      handleRegenerateRound(round);
+                    }}
+                  />
+                )}
+                {isAdmin && !readOnly && switchOpenRound === round && (
+                  <SwitchPlayersForm
+                    roundMatches={roundMatches}
+                    playerName={playerName}
+                    player1={switchPlayer1}
+                    player2={switchPlayer2}
+                    onPlayer1Change={setSwitchPlayer1}
+                    onPlayer2Change={setSwitchPlayer2}
+                    switching={switching}
+                    onSubmit={() => handleSwitchPlayers(round)}
+                  />
+                )}
                 <div className="match-grid">
                   {roundMatches.map((match) => (
                     <MatchCard
@@ -427,6 +522,80 @@ export function MatchdayPage() {
         </section>
       )}
     </div>
+  );
+}
+
+// Picks any two players in this round and swaps their court/team slots
+// (see schema.graphql's switchRoundPlayers) — each select excludes
+// whichever player is already chosen in the other one.
+function SwitchPlayersForm({
+  roundMatches,
+  playerName,
+  player1,
+  player2,
+  onPlayer1Change,
+  onPlayer2Change,
+  switching,
+  onSubmit,
+}: {
+  roundMatches: Match[];
+  playerName: (playerId: string) => string;
+  player1: string;
+  player2: string;
+  onPlayer1Change: (playerId: string) => void;
+  onPlayer2Change: (playerId: string) => void;
+  switching: boolean;
+  onSubmit: () => void;
+}) {
+  const options = roundMatches
+    .flatMap((m) => [
+      ...m.team1PlayerIds.map((playerId) => ({ playerId, court: m.court })),
+      ...m.team2PlayerIds.map((playerId) => ({ playerId, court: m.court })),
+    ])
+    .map((o) => ({ ...o, label: `Court ${o.court} · ${playerName(o.playerId)}` }));
+
+  return (
+    <form
+      className="inline-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <label>
+        Player A
+        <select value={player1} onChange={(e) => onPlayer1Change(e.target.value)} required>
+          <option value="" disabled>
+            Select player
+          </option>
+          {options
+            .filter((o) => o.playerId !== player2)
+            .map((o) => (
+              <option key={o.playerId} value={o.playerId}>
+                {o.label}
+              </option>
+            ))}
+        </select>
+      </label>
+      <label>
+        Player B
+        <select value={player2} onChange={(e) => onPlayer2Change(e.target.value)} required>
+          <option value="" disabled>
+            Select player
+          </option>
+          {options
+            .filter((o) => o.playerId !== player1)
+            .map((o) => (
+              <option key={o.playerId} value={o.playerId}>
+                {o.label}
+              </option>
+            ))}
+        </select>
+      </label>
+      <button type="submit" className="button-primary" disabled={switching || !player1 || !player2}>
+        {switching ? 'Switching…' : 'Switch'}
+      </button>
+    </form>
   );
 }
 

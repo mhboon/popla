@@ -326,6 +326,28 @@ export class PoplaBackendStack extends Stack {
     matchdayParticipantsTable.grantReadWriteData(generateRoundFn);
     matchesTable.grantReadWriteData(generateRoundFn);
 
+    const regenerateRoundFn = new NodejsFunction(this, 'RegenerateRoundFn', {
+      entry: path.join(__dirname, '../lambda/regenerate-round/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: lambdaEnv,
+    });
+    // Read-only on matchdays/participants — only matchesTable is written
+    // (delete-then-put the target round; see
+    // infra/lambda/regenerate-round/index.ts).
+    matchdaysTable.grantReadData(regenerateRoundFn);
+    matchdayParticipantsTable.grantReadData(regenerateRoundFn);
+    matchesTable.grantReadWriteData(regenerateRoundFn);
+
+    const switchRoundPlayersFn = new NodejsFunction(this, 'SwitchRoundPlayersFn', {
+      entry: path.join(__dirname, '../lambda/switch-round-players/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: lambdaEnv,
+    });
+    matchdaysTable.grantReadData(switchRoundPlayersFn);
+    matchesTable.grantReadWriteData(switchRoundPlayersFn);
+
     const closeMatchdayFn = new NodejsFunction(this, 'CloseMatchdayFn', {
       entry: path.join(__dirname, '../lambda/close-matchday/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -347,6 +369,32 @@ export class PoplaBackendStack extends Stack {
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(
         path.join(RESOLVERS_DIR, 'Mutation.generateRound.js')
+      ),
+    });
+
+    const regenerateRoundDS = api.addLambdaDataSource(
+      'RegenerateRoundDataSource',
+      regenerateRoundFn
+    );
+    regenerateRoundDS.createResolver('MutationRegenerateRoundResolver', {
+      typeName: 'Mutation',
+      fieldName: 'regenerateRound',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.regenerateRound.js')
+      ),
+    });
+
+    const switchRoundPlayersDS = api.addLambdaDataSource(
+      'SwitchRoundPlayersDataSource',
+      switchRoundPlayersFn
+    );
+    switchRoundPlayersDS.createResolver('MutationSwitchRoundPlayersResolver', {
+      typeName: 'Mutation',
+      fieldName: 'switchRoundPlayers',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.switchRoundPlayers.js')
       ),
     });
 
