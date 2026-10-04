@@ -1,12 +1,15 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
-import { buildCourtsForRound, type MatchRecord } from '../shared/pairing';
+import { buildCourtsForRound, randomOrder, type MatchRecord } from '../shared/pairing';
+import { weightedRankingSeedOrder } from '../shared/weighted-ranking';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const MATCHDAYS_TABLE = process.env.MATCHDAYS_TABLE!;
 const PARTICIPANTS_TABLE = process.env.MATCHDAY_PARTICIPANTS_TABLE!;
 const MATCHES_TABLE = process.env.MATCHES_TABLE!;
+const RESULTS_TABLE = process.env.MATCHDAY_RESULTS_TABLE!;
+const PLAYERS_TABLE = process.env.PLAYERS_TABLE!;
 
 interface RegenerateRoundArgs {
   matchdayId: string;
@@ -59,7 +62,20 @@ export const handler = async (event: { arguments: RegenerateRoundArgs }) => {
     .filter((item) => (item.status ?? 'JOINING') === 'JOINING')
     .map((item) => item.playerId as string);
 
-  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches);
+  // Same round-1-only seed as generateRound (see its own comment): a
+  // regenerated round 1 still needs MEXICANO_SPECIAL's weighted-ranking
+  // order, not a fresh random one.
+  const round1Order =
+    round === 1 && matchday.format === 'MEXICANO_SPECIAL'
+      ? await weightedRankingSeedOrder(
+          ddb,
+          { matchdaysTable: MATCHDAYS_TABLE, resultsTable: RESULTS_TABLE, playersTable: PLAYERS_TABLE },
+          matchday.seasonId,
+          participantIds
+        )
+      : randomOrder(participantIds);
+
+  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches, round1Order);
 
   // Delete-then-put rather than overwriting the old roundCourt keys in
   // place: the court count tracks participantIds.length, which can in

@@ -61,6 +61,23 @@ export function buildPartnershipHistory(
   return { previousRound, earlier };
 }
 
+// Americano only (see courtsFromGlobalRandomPairing): every pair who's
+// ever faced each other across the net, any round, flattened into one
+// set — a single soft preference, not the previous-round/earlier
+// two-tier split partnerships get, so it's a weaker pull than the
+// partner-repeat rule by construction, not just by convention.
+export function buildOpponentHistory(priorMatches: MatchRecord[]): Set<string> {
+  const opponents = new Set<string>();
+  for (const match of priorMatches) {
+    for (const a of match.team1PlayerIds) {
+      for (const b of match.team2PlayerIds) {
+        opponents.add(partnershipKey(a, b));
+      }
+    }
+  }
+  return opponents;
+}
+
 interface Split {
   team1: [string, string];
   team2: [string, string];
@@ -223,22 +240,71 @@ function buildGlobalPartnerships(
   return best;
 }
 
+function countOpponentRepeats(
+  pairedPartnerships: [string, string][],
+  opponentHistory: Set<string>
+): number {
+  let count = 0;
+  for (let i = 0; i < pairedPartnerships.length; i += 2) {
+    const [team1, team2] = [pairedPartnerships[i], pairedPartnerships[i + 1]];
+    for (const a of team1) {
+      for (const b of team2) {
+        if (opponentHistory.has(partnershipKey(a, b))) count++;
+      }
+    }
+  }
+  return count;
+}
+
+// Same bounded-retry-and-keep-best shape as buildGlobalPartnerships, one
+// tier simpler: a plain shuffle is already a valid answer (opponent
+// repeats are a soft preference only), so there's no greedy pass to
+// retry — just reshuffle the courts and keep whichever shuffle racked up
+// the fewest repeat-opponent pairs.
+const OPPONENT_GROUPING_ATTEMPTS = 25;
+
+function groupPartnershipsIntoCourts(
+  partnerships: [string, string][],
+  opponentHistory: Set<string>
+): [string, string][] {
+  let best = shuffle(partnerships);
+  let bestScore = countOpponentRepeats(best, opponentHistory);
+
+  for (let attempt = 1; attempt < OPPONENT_GROUPING_ATTEMPTS && bestScore > 0; attempt++) {
+    const candidate = shuffle(partnerships);
+    const score = countOpponentRepeats(candidate, opponentHistory);
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
 /**
- * Americano: pairs up the whole field at once (see buildGlobalPartnerships),
- * then randomly groups the resulting partnerships two at a time into
- * courts — which partnerships end up facing which others is arbitrary
- * (opponent repeats are never tracked, only partnerships, per SPEC.md).
+ * Americano: pairs up the whole field at once (see
+ * buildGlobalPartnerships), then groups the resulting partnerships two
+ * at a time into courts, preferring groupings where fewer pairs have
+ * already faced each other as opponents before (see buildOpponentHistory)
+ * — a soft, best-effort preference only, and strictly secondary to
+ * partner-repeat avoidance, which is already locked in by the time this
+ * step runs.
  */
 export function courtsFromGlobalRandomPairing(
   round: number,
   playerIds: string[],
-  history: PartnershipHistory
+  history: PartnershipHistory,
+  opponentHistory: Set<string>
 ): CourtAssignment[] {
   if (playerIds.length === 0 || playerIds.length % 4 !== 0) {
     throw new Error('participant count must be a non-zero multiple of 4');
   }
 
-  const partnerships = shuffle(buildGlobalPartnerships(playerIds, history));
+  const partnerships = groupPartnershipsIntoCourts(
+    buildGlobalPartnerships(playerIds, history),
+    opponentHistory
+  );
 
   const courts: CourtAssignment[] = [];
   for (let i = 0; i < partnerships.length; i += 2) {
@@ -323,26 +389,34 @@ export function rankByStandingsSoFar(
 }
 
 /**
- * Builds one round's court assignments for either format — the shared
- * core of generate-round (the next round) and regenerate-round (an
- * existing, not-yet-played round being reshuffled). `priorMatches` must
- * exclude `round` itself, so its matches are never treated as their own
- * history: buildPartnershipHistory compares every match's round against
- * `round` to sort it into "previous round" (hard rule) or "earlier"
- * (soft rule) — see SPEC.md's Match Generation and Partner Repeat Rule.
+ * Builds one round's court assignments for any format — the shared core
+ * of generate-round (the next round) and regenerate-round (an existing,
+ * not-yet-played round being reshuffled). `priorMatches` must exclude
+ * `round` itself, so its matches are never treated as their own history:
+ * buildPartnershipHistory compares every match's round against `round`
+ * to sort it into "previous round" (hard rule) or "earlier" (soft rule)
+ * — see SPEC.md's Match Generation and Partner Repeat Rule.
+ *
+ * `round1Order` is each format's own business for *why* it's ordered
+ * that way (plain Mexicano: random; Mexicano Special: this matchday's
+ * participants ranked by season weighted ranking — see
+ * shared/weighted-ranking.ts), computed by the caller since it may need
+ * data (e.g. season standings) this pure function has no access to.
+ * Ignored for AMERICANO (global pairing has no bucket order to seed) and
+ * for round > 1 of either Mexicano variant (both re-rank by this
+ * matchday's standings so far, regardless of how round 1 started).
  */
 export function buildCourtsForRound(
   format: string,
   round: number,
   participantIds: string[],
-  priorMatches: MatchRecord[]
+  priorMatches: MatchRecord[],
+  round1Order: string[]
 ): CourtAssignment[] {
   const history = buildPartnershipHistory(priorMatches, round);
-  return format === 'AMERICANO'
-    ? courtsFromGlobalRandomPairing(round, participantIds, history)
-    : courtsFromOrderedPlayers(
-        round,
-        round === 1 ? randomOrder(participantIds) : rankByStandingsSoFar(priorMatches, participantIds),
-        history
-      );
+  if (format === 'AMERICANO') {
+    return courtsFromGlobalRandomPairing(round, participantIds, history, buildOpponentHistory(priorMatches));
+  }
+  const ordered = round === 1 ? round1Order : rankByStandingsSoFar(priorMatches, participantIds);
+  return courtsFromOrderedPlayers(round, ordered, history);
 }

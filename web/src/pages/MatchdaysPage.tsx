@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth';
 import { ClickableRow } from '../components/ClickableRow';
 import { listMatchdaysBySeason, listSeasons } from '../lib/api';
-import { compareMatchdayWhenDesc, formatMatchdayWhen } from '../lib/matchday';
+import { compareMatchdayWhenDesc, formatMatchdayFormat, formatMatchdayWhen } from '../lib/matchday';
 import type { Matchday, Season } from '../types/graphql';
 
 export function MatchdaysPage() {
@@ -70,7 +70,7 @@ export function MatchdaysPage() {
                 <Link to={`/matchdays/${matchday.matchdayId}`}>
                   <span className="matchday-list-season">{seasonName(matchday.seasonId)}</span>
                   <span className="matchday-list-date">{formatMatchdayWhen(matchday)}</span>
-                  <span>{matchday.format}</span>
+                  <span>{formatMatchdayFormat(matchday.format)}</span>
                   <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
                     {matchday.status.replace('_', ' ')}
                   </span>
@@ -104,7 +104,7 @@ export function MatchdaysPage() {
                       </Link>
                     </td>
                     <td>{formatMatchdayWhen(matchday)}</td>
-                    <td>{matchday.format}</td>
+                    <td>{formatMatchdayFormat(matchday.format)}</td>
                   </ClickableRow>
                 ))}
               </tbody>

@@ -97,7 +97,7 @@ a `Player` with no phone and therefore no Cognito account. Guests:
 
 ### Match Generation
 
-Two supported formats, selectable per matchday:
+Three supported formats, selectable per matchday:
 
 **Mexicano** (standings-based):
 1. Round 1: all N participants are randomly assigned to courts (4 players
@@ -116,6 +116,17 @@ Two supported formats, selectable per matchday:
    (re-rank → re-bucket → randomize within bucket each time), until the
    admin ends the matchday.
 
+**Mexicano Special**: identical to Mexicano in every respect, *except*
+step 1 — instead of a random round-1 assignment, participants are
+seeded by their current season Weighted Ranking (see Weighted Ranking
+below), best first. A participant not on that ranking at all (hasn't
+played enough matchdays yet to qualify, or is a guest, who's never on
+it) starts in the lowest bucket instead of erroring out; if more than
+one participant is unranked, they're shuffled randomly among themselves
+for that starting slot, since there's no signal to order them by. Round
+2 onward re-ranks by this matchday's own standings exactly like plain
+Mexicano — the weighted ranking only ever seeds round 1.
+
 **Americano** (fully random):
 - Every round, partnerships are decided across **the entire field at
   once**, weighted against the same partner-repeat rule (see below) but
@@ -124,18 +135,17 @@ Two supported formats, selectable per matchday:
   confine avoidance to whichever 4 players happen to already be grouped
   — the whole field is searched for a repeat-free partner instead.
 - Once every participant has a partner this way, the resulting N/2
-  partnerships are randomly paired up, two at a time, into courts — which
-  partnership faces which other partnership is arbitrary and unrelated
-  to history (see Partner Repeat Rule below: opponents are never
-  tracked).
+  partnerships are grouped two at a time into courts, weighted against
+  the Opponent Repeat Preference below — which partnership ends up
+  facing which other partnership is otherwise arbitrary.
 
 **Partner Repeat Rule** (what "weighted against repeats" means above,
-for both formats):
+for all three formats):
 - **Hard rule**: never reconstruct a partnership from the immediately
   previous round.
-  - Mexicano: always possible within a single bucket of 4 — each player
-    has at most one partner from that round, so at most one of the 3
-    possible splits can ever collide with it.
+  - Mexicano/Mexicano Special: always possible within a single bucket of
+    4 — each player has at most one partner from that round, so at most
+    one of the 3 possible splits can ever collide with it.
   - Americano: a repeat-free pairing across the whole field always
     exists in principle (the same reasoning behind round-robin
     scheduling), but isn't guaranteed to be *found* on the first try —
@@ -144,9 +154,18 @@ for both formats):
 - **Soft rule**: among whatever's left, prefer whichever repeats the
   fewest partnerships from any *earlier* round (not the previous one).
   If every option available repeats something, that's accepted — this
-  is a preference, not a guarantee, for either format.
-- Opponent repeats (facing the same pair across the net again) are never
-  tracked or avoided, only partnerships.
+  is a preference, not a guarantee, for any format.
+
+**Opponent Repeat Preference** (Americano only): when grouping this
+round's partnerships into courts, prefer groupings where fewer pairs of
+players have already faced each other as opponents in *any* earlier
+round — a single best-effort preference, not split into a hard/soft
+two-tier rule like partnerships above, and strictly weaker: it only ever
+decides which partnerships share a court, a choice made after partner
+assignment is already locked in, so it can never cause (or avoid) a
+partner repeat. Mexicano and Mexicano Special don't track opponents at
+all — a bucket's standings-based composition already determines who's
+on court together, leaving nothing for this preference to act on.
 
 ### Day Ranking (within a matchday)
 

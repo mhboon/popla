@@ -157,6 +157,7 @@ export function MatchdaySetupPage() {
             Tournament style
             <select value={format} onChange={(e) => setFormat(e.target.value as MatchdayFormat)}>
               <option value="MEXICANO">Mexicano</option>
+              <option value="MEXICANO_SPECIAL">Mexicano Special</option>
               <option value="AMERICANO">Americano</option>
             </select>
           </label>
