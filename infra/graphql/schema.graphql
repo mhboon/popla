@@ -288,6 +288,21 @@ type Mutation {
   closeMatchday(matchdayId: ID!): Matchday!
     @aws_auth(cognito_groups: ["Admins"])
 
+  # Deletes the single most recent (by date) matchday in its season —
+  # whether still SETUP/IN_PROGRESS or already CLOSED — rejected if
+  # `matchdayId` isn't currently that one, so a historical matchday can
+  # never be pulled out from under later ones. Everything about it (the
+  # matchday itself, its roster, its matches, and its results if any) is
+  # exported to S3 first — see infra/lambda/delete-latest-matchday — so
+  # the only way to lose this call's effect is not finding that export.
+  # If it was CLOSED, every participant's season standings row
+  # (totalPoints/matchdaysPlayed/winnerPoints) is corrected back to
+  # exactly what it would be had this matchday never been closed, not
+  # just abandoned alongside the deleted results. Returns the seasonId,
+  # since the matchday itself no longer exists to fetch afterward.
+  deleteLatestMatchday(matchdayId: ID!): ID!
+    @aws_auth(cognito_groups: ["Admins"])
+
   # Grants Admins-group membership to a player's existing Cognito user
   # (requires the player to already have phone-based login enabled, i.e.
   # a non-null cognitoSub — see ARCHITECTURE.md's Auth section).

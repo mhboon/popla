@@ -750,7 +750,10 @@ export class PoplaBackendStack extends Stack {
     const backupBucket = new s3.Bucket(this, 'BackupBucket', {
       removalPolicy: RemovalPolicy.RETAIN,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      lifecycleRules: [{ expiration: Duration.days(28) }],
+      // Scoped to daily/ so the rolling nightly snapshots age out, while
+      // deleted-matchdays/ (see delete-latest-matchday below) — the only
+      // copy of whatever it deleted — is kept indefinitely instead.
+      lifecycleRules: [{ prefix: 'daily/', expiration: Duration.days(28) }],
     });
 
     const backupTables = [
@@ -780,6 +783,34 @@ export class PoplaBackendStack extends Stack {
     new events.Rule(this, 'BackupTablesSchedule', {
       schedule: events.Schedule.cron({ minute: '0', hour: '3' }), // 03:00 UTC daily
       targets: [new targets.LambdaFunction(backupFn)],
+    });
+
+    // ---- Delete latest matchday ----
+    // Needs backupBucket (above) for its pre-delete S3 export.
+    const deleteLatestMatchdayFn = new NodejsFunction(this, 'DeleteLatestMatchdayFn', {
+      entry: path.join(__dirname, '../lambda/delete-latest-matchday/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: { ...lambdaEnv, BACKUP_BUCKET_NAME: backupBucket.bucketName },
+    });
+    matchdaysTable.grantReadWriteData(deleteLatestMatchdayFn);
+    matchdayParticipantsTable.grantReadWriteData(deleteLatestMatchdayFn);
+    matchesTable.grantReadWriteData(deleteLatestMatchdayFn);
+    matchdayResultsTable.grantReadWriteData(deleteLatestMatchdayFn);
+    seasonStandingsTable.grantReadWriteData(deleteLatestMatchdayFn);
+    backupBucket.grantWrite(deleteLatestMatchdayFn);
+
+    const deleteLatestMatchdayDS = api.addLambdaDataSource(
+      'DeleteLatestMatchdayDataSource',
+      deleteLatestMatchdayFn
+    );
+    deleteLatestMatchdayDS.createResolver('MutationDeleteLatestMatchdayResolver', {
+      typeName: 'Mutation',
+      fieldName: 'deleteLatestMatchday',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.deleteLatestMatchday.js')
+      ),
     });
 
     // ---- Outputs ----

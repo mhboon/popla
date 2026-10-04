@@ -30,8 +30,11 @@ async function scanAll(tableName: string): Promise<Record<string, unknown>[]> {
 // negligible, and a flat, human-readable JSON file per table is far
 // easier to inspect or restore from by hand than the native export's
 // sharded/manifest format — matches this repo's existing local/
-// reconciliation scripts' style. The S3 bucket's lifecycle rule handles
-// the 4-week retention (see backend-stack.ts), not this handler.
+// reconciliation scripts' style. Lives under daily/ specifically so the
+// bucket's 4-week lifecycle rule (see backend-stack.ts) can be scoped to
+// just these rolling snapshots, leaving other prefixes (e.g.
+// deleted-matchdays/, see infra/lambda/delete-latest-matchday) to keep
+// what they write indefinitely.
 export const handler = async () => {
   const date = new Date().toISOString().slice(0, 10);
   for (const tableName of TABLE_NAMES) {
@@ -39,7 +42,7 @@ export const handler = async () => {
     await s3.send(
       new PutObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: `${date}/${tableName}.json`,
+        Key: `daily/${date}/${tableName}.json`,
         Body: JSON.stringify(items),
         ContentType: 'application/json',
       })
