@@ -304,6 +304,15 @@ export function closeMatchday(idToken: string, matchdayId: string) {
   ).then((d) => d.closeMatchday);
 }
 
+// Returns the seasonId — the matchday itself no longer exists afterward.
+export function deleteLatestMatchday(idToken: string, matchdayId: string) {
+  return graphqlRequest<{ deleteLatestMatchday: string }>(
+    idToken,
+    `mutation($matchdayId: ID!) { deleteLatestMatchday(matchdayId: $matchdayId) }`,
+    { matchdayId }
+  ).then((d) => d.deleteLatestMatchday);
+}
+
 export function getMatchdayRanking(idToken: string, matchdayId: string) {
   return graphqlRequest<{ getMatchdayRanking: MatchdayResult[] }>(
     idToken,

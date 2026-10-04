@@ -290,6 +290,12 @@ export function MatchdayPage() {
         <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
           {matchday.status.replace('_', ' ')}
         </span>
+        {isAdmin && (
+          <>
+            {' · '}
+            <Link to={`/matchdays/${matchday.matchdayId}/delete`}>Delete</Link>
+          </>
+        )}
       </p>
       {error && <p className="form-error">{error}</p>}
 
@@ -883,6 +889,8 @@ function MatchdaySetupPanel({
           <>
             {' · '}
             <Link to={`/matchdays/${matchday.matchdayId}/edit`}>Edit</Link>
+            {' · '}
+            <Link to={`/matchdays/${matchday.matchdayId}/delete`}>Delete</Link>
           </>
         )}
       </p>

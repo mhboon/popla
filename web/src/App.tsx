@@ -14,6 +14,7 @@ import { PlayerSeasonResultsPage } from './pages/PlayerSeasonResultsPage';
 import { MatchdaysPage } from './pages/MatchdaysPage';
 import { MatchdaySetupPage } from './pages/MatchdaySetupPage';
 import { MatchdayPage } from './pages/MatchdayPage';
+import { DeleteMatchdayPage } from './pages/DeleteMatchdayPage';
 
 // "/" itself: the login page when signed out, a real home page when
 // signed in — not a redirect into whichever section an admin vs.
@@ -120,6 +121,14 @@ export function App() {
             element={
               <ProtectedRoute requireAdmin={false}>
                 <MatchdayPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/matchdays/:matchdayId/delete"
+            element={
+              <ProtectedRoute>
+                <DeleteMatchdayPage />
               </ProtectedRoute>
             }
           />
