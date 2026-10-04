@@ -1,5 +1,11 @@
+# See SPEC.md's Match Generation: MEXICANO_SPECIAL plays exactly like
+# MEXICANO (standings-based re-bucketing every round) except for its
+# round 1 seed order, which comes from the season's current weighted
+# ranking instead of being random — anyone not on that ranking yet
+# starts in the lowest bucket.
 enum MatchdayFormat {
   MEXICANO
+  MEXICANO_SPECIAL
   AMERICANO
 }
 

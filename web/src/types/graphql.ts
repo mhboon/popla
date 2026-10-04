@@ -1,4 +1,4 @@
-export type MatchdayFormat = 'MEXICANO' | 'AMERICANO';
+export type MatchdayFormat = 'MEXICANO' | 'MEXICANO_SPECIAL' | 'AMERICANO';
 export type SeasonStatus = 'ACTIVE' | 'CLOSED';
 export type MatchdayStatus = 'SETUP' | 'IN_PROGRESS' | 'CLOSED';
 export type MatchStatus = 'PENDING' | 'COMPLETE';

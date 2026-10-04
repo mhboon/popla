@@ -1,6 +1,18 @@
+import type { MatchdayFormat } from '../types/graphql';
+
 interface DatedMatchday {
   date: string;
   startTime?: string | null;
+}
+
+const FORMAT_LABELS: Record<MatchdayFormat, string> = {
+  MEXICANO: 'Mexicano',
+  MEXICANO_SPECIAL: 'Mexicano Special',
+  AMERICANO: 'Americano',
+};
+
+export function formatMatchdayFormat(format: MatchdayFormat): string {
+  return FORMAT_LABELS[format];
 }
 
 /** Descending by date, then by start time (for same-day matchdays — rare, but not impossible). */

@@ -316,28 +316,34 @@ export class PoplaBackendStack extends Stack {
       entry: path.join(__dirname, '../lambda/generate-round/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
-      environment: lambdaEnv,
+      environment: { ...lambdaEnv, PLAYERS_TABLE: playersTable.tableName },
     });
     // Read-write: also flips status SETUP -> IN_PROGRESS when round 1 is
     // generated, and (matchdayParticipantsTable) deletes any still-
     // WAITLISTED/DECLINED rows at that same moment (see
-    // infra/lambda/generate-round/index.ts).
+    // infra/lambda/generate-round/index.ts). matchdayResultsTable/
+    // playersTable are read-only, for MEXICANO_SPECIAL's round-1 weighted-
+    // ranking seed (see shared/weighted-ranking.ts).
     matchdaysTable.grantReadWriteData(generateRoundFn);
     matchdayParticipantsTable.grantReadWriteData(generateRoundFn);
     matchesTable.grantReadWriteData(generateRoundFn);
+    matchdayResultsTable.grantReadData(generateRoundFn);
+    playersTable.grantReadData(generateRoundFn);
 
     const regenerateRoundFn = new NodejsFunction(this, 'RegenerateRoundFn', {
       entry: path.join(__dirname, '../lambda/regenerate-round/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: Duration.seconds(10),
-      environment: lambdaEnv,
+      environment: { ...lambdaEnv, PLAYERS_TABLE: playersTable.tableName },
     });
-    // Read-only on matchdays/participants — only matchesTable is written
-    // (delete-then-put the target round; see
+    // Read-only on matchdays/participants/results/players — only
+    // matchesTable is written (delete-then-put the target round; see
     // infra/lambda/regenerate-round/index.ts).
     matchdaysTable.grantReadData(regenerateRoundFn);
     matchdayParticipantsTable.grantReadData(regenerateRoundFn);
     matchesTable.grantReadWriteData(regenerateRoundFn);
+    matchdayResultsTable.grantReadData(regenerateRoundFn);
+    playersTable.grantReadData(regenerateRoundFn);
 
     const switchRoundPlayersFn = new NodejsFunction(this, 'SwitchRoundPlayersFn', {
       entry: path.join(__dirname, '../lambda/switch-round-players/index.ts'),

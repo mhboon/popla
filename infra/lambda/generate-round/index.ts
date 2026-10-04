@@ -7,13 +7,16 @@ import {
   UpdateCommand,
   TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { buildCourtsForRound, type MatchRecord } from '../shared/pairing';
+import { buildCourtsForRound, randomOrder, type MatchRecord } from '../shared/pairing';
+import { weightedRankingSeedOrder } from '../shared/weighted-ranking';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const MATCHDAYS_TABLE = process.env.MATCHDAYS_TABLE!;
 const PARTICIPANTS_TABLE = process.env.MATCHDAY_PARTICIPANTS_TABLE!;
 const MATCHES_TABLE = process.env.MATCHES_TABLE!;
+const RESULTS_TABLE = process.env.MATCHDAY_RESULTS_TABLE!;
+const PLAYERS_TABLE = process.env.PLAYERS_TABLE!;
 
 interface GenerateRoundArgs {
   matchdayId: string;
@@ -70,17 +73,36 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
 
   const priorMatches = (existingMatches.Items ?? []) as unknown as MatchRecord[];
 
-  // Repeat-partner avoidance applies to both formats (see SPEC.md's Match
-  // Generation), but at different scopes: Mexicano's groups of 4 are
-  // meaningful (standings-based), so avoidance stays scoped to whichever
-  // 4 land in a bucket together; Americano's groupings carry no such
-  // meaning, so it pairs up the entire field at once instead, with no
-  // bucket boundary constraining which players can avoid a repeat with
-  // which. Round 1 has no prior matches either way, so history is
-  // naturally empty there regardless of format. priorMatches is every
-  // match generated so far, which (unlike regenerate-round) is always
-  // every round *before* this one, since this is always the next round.
-  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches);
+  // Round 1's seed order is the one thing that tells the two Mexicano
+  // variants apart (see SPEC.md's Match Generation): MEXICANO starts
+  // from a random order, MEXICANO_SPECIAL from the season's current
+  // weighted ranking (unranked participants — not enough matchdays
+  // played yet, or guests — dropped to the bottom). Computed either way
+  // even for AMERICANO/round > 1, where buildCourtsForRound ignores it,
+  // since it's cheap and keeps this call site simple.
+  const round1Order =
+    round === 1 && matchday.format === 'MEXICANO_SPECIAL'
+      ? await weightedRankingSeedOrder(
+          ddb,
+          { matchdaysTable: MATCHDAYS_TABLE, resultsTable: RESULTS_TABLE, playersTable: PLAYERS_TABLE },
+          matchday.seasonId,
+          participantIds
+        )
+      : randomOrder(participantIds);
+
+  // Repeat-partner avoidance applies to every format (see SPEC.md's Match
+  // Generation), but at different scopes: both Mexicano variants' groups
+  // of 4 are meaningful (standings-based), so avoidance stays scoped to
+  // whichever 4 land in a bucket together; Americano's groupings carry no
+  // such meaning, so it pairs up the entire field at once instead, with
+  // no bucket boundary constraining which players can avoid a repeat with
+  // which (and, more loosely, which players face each other again as
+  // opponents — see buildOpponentHistory). Round 1 has no prior matches
+  // either way, so history is naturally empty there regardless of format.
+  // priorMatches is every match generated so far, which (unlike
+  // regenerate-round) is always every round *before* this one, since this
+  // is always the next round.
+  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches, round1Order);
 
   await ddb.send(
     new BatchWriteCommand({

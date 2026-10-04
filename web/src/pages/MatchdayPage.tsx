@@ -22,7 +22,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PlayerMultiSelect } from '../components/PlayerMultiSelect';
 import { ShareButton } from '../components/ShareButton';
 import { assignCompetitionRank } from '../lib/ranking';
-import { formatMatchdayWhen } from '../lib/matchday';
+import { formatMatchdayFormat, formatMatchdayWhen } from '../lib/matchday';
 import { formatMatchdayRankingShare, formatRoundShare } from '../lib/shareFormat';
 import { sortByName } from '../lib/sort';
 import { useMyPlayerId } from '../lib/useMyPlayerId';
@@ -286,7 +286,7 @@ export function MatchdayPage() {
       <BackLink />
       <h1>Matchday — {formatMatchdayWhen(matchday)}</h1>
       <p>
-        Tournament style: {matchday.format} ·{' '}
+        Tournament style: {formatMatchdayFormat(matchday.format)} ·{' '}
         <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
           {matchday.status.replace('_', ' ')}
         </span>
@@ -873,7 +873,7 @@ function MatchdaySetupPanel({
       <BackLink />
       <h1>Matchday — {formatMatchdayWhen(matchday)}</h1>
       <p>
-        Tournament style: {matchday.format} ·{' '}
+        Tournament style: {formatMatchdayFormat(matchday.format)} ·{' '}
         <span className={`status-badge status-${matchday.status.toLowerCase()}`}>
           {matchday.status.replace('_', ' ')}
         </span>

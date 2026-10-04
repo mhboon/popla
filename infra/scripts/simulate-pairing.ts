@@ -18,10 +18,12 @@
 
 import { writeFileSync } from 'node:fs';
 import {
+  buildOpponentHistory,
   buildPartnershipHistory,
   computeStandings,
   courtsFromGlobalRandomPairing,
   courtsFromOrderedPlayers,
+  partnershipKey,
   randomOrder,
   rankByStandingsSoFar,
   type MatchRecord,
@@ -139,6 +141,7 @@ function main() {
       round === 1
         ? { previousRound: new Set<string>(), earlier: new Set<string>() }
         : buildPartnershipHistory(allMatches, round);
+    const opponentHistoryBefore = buildOpponentHistory(allMatches);
 
     // Mirrors generate-round/index.ts's own format branch: Mexicano
     // ranks by standings and scopes avoidance to each bucket of 4;
@@ -146,7 +149,7 @@ function main() {
     // groupings carry no meaning worth preserving.
     const courts =
       format === 'AMERICANO'
-        ? courtsFromGlobalRandomPairing(round, playerIds, history)
+        ? courtsFromGlobalRandomPairing(round, playerIds, history, opponentHistoryBefore)
         : courtsFromOrderedPlayers(
             round,
             round === 1 ? randomOrder(playerIds) : rankByStandingsSoFar(allMatches, playerIds),
@@ -165,12 +168,39 @@ function main() {
 
     const standingsAfterRound = computeStandings(allMatches, playerIds);
 
+    // Diagnostic only, Americano-specific (Mexicano's bucketing doesn't
+    // track opponents at all): how many of this round's partnerships/
+    // opponent pairings had already happened before — see
+    // buildOpponentHistory's doc comment on why opponent repeats are a
+    // softer preference than partner repeats, not a hard rule.
+    const repeatNote =
+      format === 'AMERICANO'
+        ? (() => {
+            let partnerRepeats = 0;
+            let opponentRepeats = 0;
+            for (const m of roundMatches) {
+              const [a, b] = m.team1PlayerIds;
+              const [c, d] = m.team2PlayerIds;
+              if (history.previousRound.has(partnershipKey(a, b)) || history.earlier.has(partnershipKey(a, b)))
+                partnerRepeats++;
+              if (history.previousRound.has(partnershipKey(c, d)) || history.earlier.has(partnershipKey(c, d)))
+                partnerRepeats++;
+              for (const x of m.team1PlayerIds) {
+                for (const y of m.team2PlayerIds) {
+                  if (opponentHistoryBefore.has(partnershipKey(x, y))) opponentRepeats++;
+                }
+              }
+            }
+            return `\n\nPartner repeats: ${partnerRepeats} · Opponent repeats: ${opponentRepeats}`;
+          })()
+        : '';
+
     reportSections.push(
       [
         `## Round ${round}`,
         '',
         '### Matches',
-        renderMatchesTable(roundMatches),
+        renderMatchesTable(roundMatches) + repeatNote,
         '',
         `### Ranking after round ${round}`,
         renderRankingTable(standingsAfterRound),
