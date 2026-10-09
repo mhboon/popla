@@ -83,10 +83,17 @@ export const handler = async (event: { arguments: RegenerateRoundArgs }) => {
   // roster was reconciled in between), so the old round's court keys
   // aren't guaranteed to match the new ones 1:1. One transaction keeps
   // the round from ever being observed half-old/half-new.
+  //
+  // Only delete keys the new courts won't overwrite: a key present in
+  // both sets would otherwise get a Delete and a Put on the same item,
+  // which TransactWriteItems rejects outright.
+  const newRoundCourtKeys = new Set(courts.map((c) => `ROUND#${c.round}#COURT#${c.court}`));
+  const staleMatches = targetRoundMatches.filter((m) => !newRoundCourtKeys.has(m.roundCourt));
+
   await ddb.send(
     new TransactWriteCommand({
       TransactItems: [
-        ...targetRoundMatches.map((m) => ({
+        ...staleMatches.map((m) => ({
           Delete: {
             TableName: MATCHES_TABLE,
             Key: { matchdayId, roundCourt: m.roundCourt },
