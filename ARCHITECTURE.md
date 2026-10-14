@@ -248,6 +248,22 @@ one.
   generating rounds and call this — there's no fixed round count.
   Winner-point eligibility (SPEC.md) needs the number of rounds played,
   taken as the highest `round` among that matchday's `Matches`.
+- `replaceMatchdayParticipant(matchdayId, outgoingPlayerId,
+  incomingPlayerId)` — see SPEC.md's Participant replacement. Only
+  while `status == IN_PROGRESS`. Queries every `Matches` row for the
+  matchday (not just the active round) and, in one transaction,
+  rewrites every `team1PlayerIds`/`team2PlayerIds` slot containing
+  `outgoingPlayerId` to `incomingPlayerId`, deletes the outgoing
+  `MatchdayParticipants` row, and puts a `JOINING` one for the incoming
+  player — real enough (a multi-row rewrite across every round played
+  so far, not a single-item update) to need Lambda rather than a native
+  resolver. Because it rewrites history rather than just the active
+  round, `closeMatchday`/the day ranking/season points need no
+  awareness that a swap ever happened — the incoming player simply owns
+  the whole matchday's `Matches` rows afterward, same as
+  `switchRoundPlayers` leaves no trace of *how* a court ended up with
+  its current occupants, just scoped to the whole matchday instead of
+  one round.
 - `updateMatchday(matchdayId, date?, format?, selfRegistrationEnabled?,
   maxParticipants?)` — only allowed while `status == SETUP`. No longer
   touches the roster at all (that's `setMatchdayJoining`'s job

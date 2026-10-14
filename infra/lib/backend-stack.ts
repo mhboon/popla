@@ -354,6 +354,16 @@ export class PoplaBackendStack extends Stack {
     matchdaysTable.grantReadData(switchRoundPlayersFn);
     matchesTable.grantReadWriteData(switchRoundPlayersFn);
 
+    const replaceMatchdayParticipantFn = new NodejsFunction(this, 'ReplaceMatchdayParticipantFn', {
+      entry: path.join(__dirname, '../lambda/replace-matchday-participant/index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(10),
+      environment: lambdaEnv,
+    });
+    matchdaysTable.grantReadData(replaceMatchdayParticipantFn);
+    matchdayParticipantsTable.grantReadWriteData(replaceMatchdayParticipantFn);
+    matchesTable.grantReadWriteData(replaceMatchdayParticipantFn);
+
     const closeMatchdayFn = new NodejsFunction(this, 'CloseMatchdayFn', {
       entry: path.join(__dirname, '../lambda/close-matchday/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -401,6 +411,19 @@ export class PoplaBackendStack extends Stack {
       runtime: JS_RUNTIME,
       code: appsync.Code.fromAsset(
         path.join(RESOLVERS_DIR, 'Mutation.switchRoundPlayers.js')
+      ),
+    });
+
+    const replaceMatchdayParticipantDS = api.addLambdaDataSource(
+      'ReplaceMatchdayParticipantDataSource',
+      replaceMatchdayParticipantFn
+    );
+    replaceMatchdayParticipantDS.createResolver('MutationReplaceMatchdayParticipantResolver', {
+      typeName: 'Mutation',
+      fieldName: 'replaceMatchdayParticipant',
+      runtime: JS_RUNTIME,
+      code: appsync.Code.fromAsset(
+        path.join(RESOLVERS_DIR, 'Mutation.replaceMatchdayParticipant.js')
       ),
     });
 

@@ -7,6 +7,7 @@ import {
   generateRound,
   getMatchday,
   getMatchdayRanking,
+  listMatchdayParticipantIds,
   listMatchdayParticipants,
   listMatches,
   listPlayerNames,
@@ -14,6 +15,7 @@ import {
   reconcileMatchdayRoster,
   recordSetResult,
   regenerateRound,
+  replaceMatchdayParticipant,
   setMatchdayJoining,
   switchRoundPlayers,
 } from '../lib/api';
@@ -110,6 +112,13 @@ export function MatchdayPage() {
   const [switchPlayer1, setSwitchPlayer1] = useState('');
   const [switchPlayer2, setSwitchPlayer2] = useState('');
   const [switching, setSwitching] = useState(false);
+  // Current roster of an IN_PROGRESS matchday (see
+  // replaceMatchdayParticipant) — unused/empty for SETUP and CLOSED.
+  const [rosterPlayerIds, setRosterPlayerIds] = useState<string[]>([]);
+  const [replaceFormOpen, setReplaceFormOpen] = useState(false);
+  const [replaceOutgoing, setReplaceOutgoing] = useState('');
+  const [replaceIncoming, setReplaceIncoming] = useState('');
+  const [replacing, setReplacing] = useState(false);
   const [closing, setClosing] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'ranking'>('matches');
@@ -136,12 +145,16 @@ export function MatchdayPage() {
         setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
         setPickablePlayers(sortByName(pickable));
       } else {
-        const [matchList, playerList] = await Promise.all([
+        const [matchList, playerList, roster] = await Promise.all([
           listMatches(idToken, matchdayId),
           listPlayerNames(idToken),
+          isAdmin && md?.status === 'IN_PROGRESS'
+            ? listMatchdayParticipantIds(idToken, matchdayId)
+            : Promise.resolve<string[]>([]),
         ]);
         setMatches(matchList);
         setPlayers(new Map(playerList.map((p) => [p.playerId, p])));
+        setRosterPlayerIds(roster);
         if (md?.status === 'CLOSED') {
           // Closed matchdays open straight to the ranking — that's the
           // meaningful result once play's done, and some (imported
@@ -205,6 +218,23 @@ export function MatchdayPage() {
       setError(err instanceof Error ? err.message : 'Failed to switch players');
     } finally {
       setSwitching(false);
+    }
+  }
+
+  async function handleReplaceParticipant() {
+    if (!matchdayId || !replaceOutgoing || !replaceIncoming) return;
+    setError(null);
+    setReplacing(true);
+    try {
+      await replaceMatchdayParticipant(idToken, matchdayId, replaceOutgoing, replaceIncoming);
+      setReplaceFormOpen(false);
+      setReplaceOutgoing('');
+      setReplaceIncoming('');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to replace participant');
+    } finally {
+      setReplacing(false);
     }
   }
 
@@ -354,6 +384,34 @@ export function MatchdayPage() {
                 setConfirmingClose(false);
                 handleCloseMatchday();
               }}
+            />
+          )}
+
+          {isAdmin && isOpen && (
+            <div className="matchday-next-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setReplaceOutgoing('');
+                  setReplaceIncoming('');
+                  setReplaceFormOpen((open) => !open);
+                }}
+              >
+                {replaceFormOpen ? 'Cancel replace' : 'Replace participant'}
+              </button>
+            </div>
+          )}
+          {isAdmin && replaceFormOpen && (
+            <ReplaceParticipantForm
+              rosterPlayerIds={rosterPlayerIds}
+              players={players}
+              playerName={playerName}
+              outgoing={replaceOutgoing}
+              incoming={replaceIncoming}
+              onOutgoingChange={setReplaceOutgoing}
+              onIncomingChange={setReplaceIncoming}
+              replacing={replacing}
+              onSubmit={handleReplaceParticipant}
             />
           )}
 
@@ -600,6 +658,81 @@ function SwitchPlayersForm({
       </label>
       <button type="submit" className="button-primary" disabled={switching || !player1 || !player2}>
         {switching ? 'Switching…' : 'Switch'}
+      </button>
+    </form>
+  );
+}
+
+// Hands an outgoing roster player's entire role in this matchday to an
+// incoming player not currently part of it — see schema.graphql's
+// replaceMatchdayParticipant. The incoming list is every known player
+// minus the current roster, so it also offers guests.
+function ReplaceParticipantForm({
+  rosterPlayerIds,
+  players,
+  playerName,
+  outgoing,
+  incoming,
+  onOutgoingChange,
+  onIncomingChange,
+  replacing,
+  onSubmit,
+}: {
+  rosterPlayerIds: string[];
+  players: Map<string, Player>;
+  playerName: (playerId: string) => string;
+  outgoing: string;
+  incoming: string;
+  onOutgoingChange: (playerId: string) => void;
+  onIncomingChange: (playerId: string) => void;
+  replacing: boolean;
+  onSubmit: () => void;
+}) {
+  const rosterOptions = sortByName(
+    rosterPlayerIds.flatMap((playerId) => {
+      const player = players.get(playerId);
+      return player ? [player] : [];
+    })
+  );
+  const rosterIds = new Set(rosterPlayerIds);
+  const incomingOptions = sortByName([...players.values()].filter((p) => !rosterIds.has(p.playerId)));
+
+  return (
+    <form
+      className="inline-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <label>
+        Replace
+        <select value={outgoing} onChange={(e) => onOutgoingChange(e.target.value)} required>
+          <option value="" disabled>
+            Select player
+          </option>
+          {rosterOptions.map((p) => (
+            <option key={p.playerId} value={p.playerId}>
+              {playerName(p.playerId)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        With
+        <select value={incoming} onChange={(e) => onIncomingChange(e.target.value)} required>
+          <option value="" disabled>
+            Select player
+          </option>
+          {incomingOptions.map((p) => (
+            <option key={p.playerId} value={p.playerId}>
+              {playerName(p.playerId)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" className="button-primary" disabled={replacing || !outgoing || !incoming}>
+        {replacing ? 'Replacing…' : 'Replace'}
       </button>
     </form>
   );
