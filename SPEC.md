@@ -70,6 +70,27 @@ in order, on a matchday that hasn't started yet: registered participants
 newest-first, waitlisted participants oldest-first (i.e. queue order —
 who gets promoted next).
 
+### Participant replacement
+
+Once a matchday has started (rounds are being generated), the roster
+itself is otherwise frozen — but a late change (someone who confirmed
+can no longer make it) is common enough to need its own path, separate
+from cancelling and refilling the whole matchday. An admin can replace
+one participant with another participant who isn't already part of
+that matchday (anyone not currently on its roster, guests included).
+
+This is a full, **as-is identity swap for the entire matchday**, not
+just from that point forward: the incoming participant takes over every
+round the outgoing participant appears in — already-completed rounds
+included — as if the incoming participant had been there from round 1.
+Court, partner, and opponent assignments themselves don't change, only
+whose name is attached to them. The outgoing participant ends up with
+no trace left in that matchday at all: no stats, no day ranking
+position, no season points for that matchday, as if they'd never
+joined. This only works while the matchday is in progress — before
+play starts, removing/adding participants via registration already
+covers it.
+
 ### Guest participants
 
 A participant doesn't need a phone number / login to be added to a

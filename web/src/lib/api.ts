@@ -365,6 +365,21 @@ export function switchRoundPlayers(
   ).then((d) => d.switchRoundPlayers);
 }
 
+export function replaceMatchdayParticipant(
+  idToken: string,
+  matchdayId: string,
+  outgoingPlayerId: string,
+  incomingPlayerId: string
+) {
+  return graphqlRequest<{ replaceMatchdayParticipant: Match[] }>(
+    idToken,
+    `mutation($matchdayId: ID!, $outgoingPlayerId: ID!, $incomingPlayerId: ID!) {
+      replaceMatchdayParticipant(matchdayId: $matchdayId, outgoingPlayerId: $outgoingPlayerId, incomingPlayerId: $incomingPlayerId) { ${MATCH_FIELDS} }
+    }`,
+    { matchdayId, outgoingPlayerId, incomingPlayerId }
+  ).then((d) => d.replaceMatchdayParticipant);
+}
+
 export function recordSetResult(
   idToken: string,
   input: { matchdayId: string; round: number; court: number; team1Games: number; team2Games: number }

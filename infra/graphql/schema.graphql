@@ -277,6 +277,24 @@ type Mutation {
     playerId2: ID!
   ): [Match!]! @aws_auth(cognito_groups: ["Admins"])
 
+  # Hands the outgoing player's entire role in this matchday to the
+  # incoming player — as if the incoming player had been there all
+  # along: every Match the outgoing player appears in (already-COMPLETE
+  # rounds included, not just the active one) is rewritten to the
+  # incoming player's id, and the roster row moves over to them too. The
+  # outgoing player ends up with no trace in this matchday at all (no
+  # stats, no season points for this matchday); court/partner/opponent
+  # assignments themselves are untouched, only the identity standing in
+  # that slot changes. For a late no-show/replacement on an already-
+  # started matchday — cancelling and refilling the roster is the
+  # alternative when play hasn't started yet. Only while IN_PROGRESS;
+  # incomingPlayerId must not already be part of this matchday's roster.
+  replaceMatchdayParticipant(
+    matchdayId: ID!
+    outgoingPlayerId: ID!
+    incomingPlayerId: ID!
+  ): [Match!]! @aws_auth(cognito_groups: ["Admins"])
+
   recordSetResult(
     matchdayId: ID!
     round: Int!
