@@ -107,6 +107,23 @@ export function HomePage() {
           <p>{activeSeason.name} · Season ranking</p>
         </Link>
       )}
+      <section>
+        <h2>Matchday formats</h2>
+        <p className="hint-text">
+          <strong>Mexicano</strong> — round 1 pairs everyone randomly. From round 2 on, players are
+          re-ranked by that day's standings and grouped with others close to their own rank, so
+          matches stay competitive as the day goes on.
+        </p>
+        <p className="hint-text">
+          <strong>Mexicano Special</strong> — works just like Mexicano, except round 1 is seeded by
+          season ranking instead of random, so the strongest matches happen from the very first
+          round.
+        </p>
+        <p className="hint-text">
+          <strong>Americano</strong> — partners and opponents are random every round, with no regard
+          to standings at all.
+        </p>
+      </section>
     </div>
   );
 }
