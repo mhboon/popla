@@ -2,11 +2,16 @@
 # MEXICANO (standings-based re-bucketing every round) except for its
 # round 1 seed order, which comes from the season's current weighted
 # ranking instead of being random — anyone not on that ranking yet
-# starts in the lowest bucket.
+# starts in the lowest bucket. HANNE_SPECIAL carries that same
+# weighted-ranking seed through every round instead of just round 1,
+# blended in with the matchday's own live form as it goes, plus a small
+# bounded correction so a run of bad luck (e.g. a strong player stuck
+# with a weak partner) doesn't drag someone's seeding down.
 enum MatchdayFormat {
   MEXICANO
   MEXICANO_SPECIAL
   AMERICANO
+  HANNE_SPECIAL
 }
 
 enum SeasonStatus {

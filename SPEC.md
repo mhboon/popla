@@ -118,7 +118,7 @@ a `Player` with no phone and therefore no Cognito account. Guests:
 
 ### Match Generation
 
-Three supported formats, selectable per matchday:
+Four supported formats, selectable per matchday:
 
 **Mexicano** (standings-based):
 1. Round 1: all N participants are randomly assigned to courts (4 players
@@ -160,8 +160,42 @@ Mexicano — the weighted ranking only ever seeds round 1.
   the Opponent Repeat Preference below — which partnership ends up
   facing which other partnership is otherwise arbitrary.
 
+**Hanne Special**: like Mexicano Special, but the season Weighted
+Ranking seeds *every* round, not just round 1 — blended with this
+matchday's own live form as the day goes on, plus a small bounded
+correction for partner-luck fairness:
+1. Each participant gets a **season seed score**, 0–1: their current
+   season Weighted Ranking divided by this matchday's participant
+   count, clamped — or a neutral 0.5 if they're not on that ranking at
+   all yet (unlike Mexicano Special, not dropped to the bottom, since
+   this score is only ever a starting point, re-blended with live
+   results every round rather than only ever seeding round 1).
+2. That seed score gets a small **correction**: for each of the most
+   recent 5 closed matchdays this season (linearly decaying weight,
+   most recent weighted highest, 0 beyond the 5th), compare each match's
+   actual result to what the two teams' *current* seed scores would
+   have predicted. A player whose matches have been landing close to
+   that prediction gets no correction; a sustained gap (e.g. consistently
+   outperforming what a weak partner's presence would predict) nudges
+   their score up or down slightly — capped small enough that it can
+   soften a run of bad partner luck without ever overriding the
+   ranking-based seed score it sits on top of.
+3. Round 1 is ordered purely by seed score + correction, same as
+   Mexicano Special. Each round after that blends in this matchday's own
+   live form (the last 3 completed rounds, most recent weighted
+   highest) — by round 4, ordering is purely this matchday's own
+   results, same as plain Mexicano from round 2 on. In between, the two
+   are linearly blended.
+4. Bucketing and the partner-repeat rule below are identical to
+   Mexicano — only the ordering fed into bucketing differs.
+
+Day Ranking, Season Points, Winner Points, and the Weighted Ranking
+itself are computed from actual match results exactly as they are for
+every other format — Hanne Special only ever changes who's paired with
+whom, never how a matchday or season is scored.
+
 **Partner Repeat Rule** (what "weighted against repeats" means above,
-for all three formats):
+for every format):
 - **Hard rule**: never reconstruct a partnership from the immediately
   previous round.
   - Mexicano/Mexicano Special: always possible within a single bucket of

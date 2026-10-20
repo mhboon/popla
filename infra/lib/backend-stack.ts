@@ -323,7 +323,10 @@ export class PoplaBackendStack extends Stack {
     // WAITLISTED/DECLINED rows at that same moment (see
     // infra/lambda/generate-round/index.ts). matchdayResultsTable/
     // playersTable are read-only, for MEXICANO_SPECIAL's round-1 weighted-
-    // ranking seed (see shared/weighted-ranking.ts).
+    // ranking seed (see shared/weighted-ranking.ts) and HANNE_SPECIAL's
+    // every-round seed score (see shared/hanne-ranking.ts) — the latter
+    // also re-reads matchesTable's own history, already granted above for
+    // writing this round's matches.
     matchdaysTable.grantReadWriteData(generateRoundFn);
     matchdayParticipantsTable.grantReadWriteData(generateRoundFn);
     matchesTable.grantReadWriteData(generateRoundFn);

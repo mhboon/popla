@@ -2,6 +2,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { buildCourtsForRound, randomOrder, type MatchRecord } from '../shared/pairing';
 import { weightedRankingSeedOrder } from '../shared/weighted-ranking';
+import { computeHanneSeedScores } from '../shared/hanne-ranking';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -75,7 +76,19 @@ export const handler = async (event: { arguments: RegenerateRoundArgs }) => {
         )
       : randomOrder(participantIds);
 
-  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches, round1Order);
+  // Same HANNE_SPECIAL seeding generateRound uses — see its own comment
+  // and shared/hanne-ranking.ts.
+  const hanneSeedScores =
+    matchday.format === 'HANNE_SPECIAL'
+      ? await computeHanneSeedScores(
+          ddb,
+          { matchdaysTable: MATCHDAYS_TABLE, resultsTable: RESULTS_TABLE, playersTable: PLAYERS_TABLE, matchesTable: MATCHES_TABLE },
+          matchday.seasonId,
+          participantIds
+        )
+      : undefined;
+
+  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches, round1Order, hanneSeedScores);
 
   // Delete-then-put rather than overwriting the old roundCourt keys in
   // place: the court count tracks participantIds.length, which can in
