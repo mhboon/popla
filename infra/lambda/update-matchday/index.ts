@@ -10,7 +10,7 @@ interface UpdateMatchdayArgs {
   matchdayId: string;
   date?: string;
   startTime?: string;
-  format?: 'MEXICANO' | 'MEXICANO_SPECIAL' | 'AMERICANO';
+  format?: 'MEXICANO' | 'MEXICANO_SPECIAL' | 'AMERICANO' | 'HANNE_SPECIAL';
   selfRegistrationEnabled?: boolean;
   maxParticipants?: number | null;
 }

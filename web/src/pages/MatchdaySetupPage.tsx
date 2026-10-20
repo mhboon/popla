@@ -159,6 +159,7 @@ export function MatchdaySetupPage() {
               <option value="MEXICANO">Mexicano</option>
               <option value="MEXICANO_SPECIAL">Mexicano Special</option>
               <option value="AMERICANO">Americano</option>
+              <option value="HANNE_SPECIAL">Hanne Special</option>
             </select>
           </label>
         </div>

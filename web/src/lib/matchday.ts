@@ -9,6 +9,7 @@ const FORMAT_LABELS: Record<MatchdayFormat, string> = {
   MEXICANO: 'Mexicano',
   MEXICANO_SPECIAL: 'Mexicano Special',
   AMERICANO: 'Americano',
+  HANNE_SPECIAL: 'Hanne Special',
 };
 
 export function formatMatchdayFormat(format: MatchdayFormat): string {

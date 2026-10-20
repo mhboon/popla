@@ -318,6 +318,56 @@ export function courtsFromGlobalRandomPairing(
   return courts;
 }
 
+// Hanne Special's within-matchday live-form component (see SPEC.md's Match
+// Generation): the last few completed rounds *this matchday*, most recent
+// weighted highest, linearly decaying to 0 — unlike rankByStandingsSoFar's
+// cumulative games-won/diff/sets ranking, this only ever looks at a
+// player's own recent rounds in isolation (no cross-player tiebreak chain),
+// since it exists purely to be blended with the season-level seed score
+// below, not to stand alone as a ranking.
+const HANNE_ROUND_WEIGHT_BASE = 3;
+const HANNE_ROUND_WEIGHT_STEP = 1;
+
+function buildHanneLiveForm(priorMatches: MatchRecord[], round: number): Map<string, number> {
+  // Most-recent-first list of this matchday's already-completed rounds —
+  // priorMatches is always every round strictly before `round` (see
+  // buildCourtsForRound's own contract), so round-1 here means "no rounds
+  // played yet" and this map stays empty (callers default to 0.5).
+  const roundsDesc: MatchRecord[][] = [];
+  for (let r = round - 1; r >= 1; r--) {
+    const matches = priorMatches.filter((m) => m.round === r && m.status === 'COMPLETE');
+    if (matches.length > 0) roundsDesc.push(matches);
+  }
+
+  const players = new Set<string>();
+  for (const matches of roundsDesc) {
+    for (const m of matches) {
+      for (const p of [...m.team1PlayerIds, ...m.team2PlayerIds]) players.add(p);
+    }
+  }
+
+  const liveForm = new Map<string, number>();
+  for (const playerId of players) {
+    let weightSum = 0;
+    let scoreSum = 0;
+    for (let j = 0; j < roundsDesc.length; j++) {
+      const weight = Math.max(HANNE_ROUND_WEIGHT_BASE - j * HANNE_ROUND_WEIGHT_STEP, 0);
+      if (weight === 0) break;
+      const match = roundsDesc[j].find(
+        (m) => m.team1PlayerIds.includes(playerId) || m.team2PlayerIds.includes(playerId)
+      );
+      if (!match) continue;
+      const onTeam1 = match.team1PlayerIds.includes(playerId);
+      const won = onTeam1 ? match.team1Games : match.team2Games;
+      const lost = onTeam1 ? match.team2Games : match.team1Games;
+      scoreSum += weight * (won + lost > 0 ? won / (won + lost) : 0.5);
+      weightSum += weight;
+    }
+    if (weightSum > 0) liveForm.set(playerId, scoreSum / weightSum);
+  }
+  return liveForm;
+}
+
 export interface PlayerStanding {
   gamesWon: number;
   gamesLost: number;
@@ -388,6 +438,12 @@ export function rankByStandingsSoFar(
   });
 }
 
+// Hanne Special's round-over-round ramp (see SPEC.md's Match Generation):
+// round 1 orders purely by the season-level seed score; by this many
+// rounds in, ordering is purely this matchday's own live form. Rounds in
+// between blend the two linearly.
+const HANNE_RAMP_ROUNDS = 3;
+
 /**
  * Builds one round's court assignments for any format — the shared core
  * of generate-round (the next round) and regenerate-round (an existing,
@@ -402,20 +458,39 @@ export function rankByStandingsSoFar(
  * participants ranked by season weighted ranking — see
  * shared/weighted-ranking.ts), computed by the caller since it may need
  * data (e.g. season standings) this pure function has no access to.
- * Ignored for AMERICANO (global pairing has no bucket order to seed) and
- * for round > 1 of either Mexicano variant (both re-rank by this
- * matchday's standings so far, regardless of how round 1 started).
+ * Ignored for AMERICANO (global pairing has no bucket order to seed), for
+ * HANNE_SPECIAL (seeded by `hanneSeedScores` every round instead — see
+ * below), and for round > 1 of either Mexicano variant (both re-rank by
+ * this matchday's standings so far, regardless of how round 1 started).
+ *
+ * `hanneSeedScores` is HANNE_SPECIAL-only: each participant's season-level
+ * seed score (weighted ranking blended with the partner-fairness
+ * correction — see shared/hanne-ranking.ts), computed by the caller since
+ * it needs DynamoDB access this pure function doesn't have. Required
+ * (and only used) when `format === 'HANNE_SPECIAL'`.
  */
 export function buildCourtsForRound(
   format: string,
   round: number,
   participantIds: string[],
   priorMatches: MatchRecord[],
-  round1Order: string[]
+  round1Order: string[],
+  hanneSeedScores?: Map<string, number>
 ): CourtAssignment[] {
   const history = buildPartnershipHistory(priorMatches, round);
   if (format === 'AMERICANO') {
     return courtsFromGlobalRandomPairing(round, participantIds, history, buildOpponentHistory(priorMatches));
+  }
+  if (format === 'HANNE_SPECIAL') {
+    if (!hanneSeedScores) throw new Error('HANNE_SPECIAL requires hanneSeedScores');
+    const liveForm = buildHanneLiveForm(priorMatches, round);
+    const mixRatio = Math.min(1, (round - 1) / HANNE_RAMP_ROUNDS);
+    const ordered = randomOrder(participantIds).sort((a, b) => {
+      const scoreA = mixRatio * (liveForm.get(a) ?? 0.5) + (1 - mixRatio) * (hanneSeedScores.get(a) ?? 0.5);
+      const scoreB = mixRatio * (liveForm.get(b) ?? 0.5) + (1 - mixRatio) * (hanneSeedScores.get(b) ?? 0.5);
+      return scoreB - scoreA;
+    });
+    return courtsFromOrderedPlayers(round, ordered, history);
   }
   const ordered = round === 1 ? round1Order : rankByStandingsSoFar(priorMatches, participantIds);
   return courtsFromOrderedPlayers(round, ordered, history);

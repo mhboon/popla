@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { buildCourtsForRound, randomOrder, type MatchRecord } from '../shared/pairing';
 import { weightedRankingSeedOrder } from '../shared/weighted-ranking';
+import { computeHanneSeedScores } from '../shared/hanne-ranking';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -78,8 +79,8 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
   // from a random order, MEXICANO_SPECIAL from the season's current
   // weighted ranking (unranked participants — not enough matchdays
   // played yet, or guests — dropped to the bottom). Computed either way
-  // even for AMERICANO/round > 1, where buildCourtsForRound ignores it,
-  // since it's cheap and keeps this call site simple.
+  // even for AMERICANO/HANNE_SPECIAL/round > 1, where buildCourtsForRound
+  // ignores it, since it's cheap and keeps this call site simple.
   const round1Order =
     round === 1 && matchday.format === 'MEXICANO_SPECIAL'
       ? await weightedRankingSeedOrder(
@@ -102,7 +103,21 @@ export const handler = async (event: { arguments: GenerateRoundArgs }) => {
   // priorMatches is every match generated so far, which (unlike
   // regenerate-round) is always every round *before* this one, since this
   // is always the next round.
-  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches, round1Order);
+  // HANNE_SPECIAL seeds every round from this (season weighted ranking +
+  // partner-fairness correction, blended with this matchday's own live
+  // form by buildCourtsForRound), not just round 1 — see
+  // shared/hanne-ranking.ts and SPEC.md's Match Generation.
+  const hanneSeedScores =
+    matchday.format === 'HANNE_SPECIAL'
+      ? await computeHanneSeedScores(
+          ddb,
+          { matchdaysTable: MATCHDAYS_TABLE, resultsTable: RESULTS_TABLE, playersTable: PLAYERS_TABLE, matchesTable: MATCHES_TABLE },
+          matchday.seasonId,
+          participantIds
+        )
+      : undefined;
+
+  const courts = buildCourtsForRound(matchday.format, round, participantIds, priorMatches, round1Order, hanneSeedScores);
 
   await ddb.send(
     new BatchWriteCommand({

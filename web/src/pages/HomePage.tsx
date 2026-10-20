@@ -123,6 +123,14 @@ export function HomePage() {
           <strong>Americano</strong> — partners and opponents are random every round, with no regard
           to standings at all.
         </p>
+        <p className="hint-text">
+          <strong>Hanne Special</strong> — like Mexicano Special, but the season ranking keeps a say
+          in every round instead of just round 1: each round blends it with how the day's own rounds
+          are going, so pairings shift smoothly from "last known form" to "how today's actually
+          going" instead of restarting cold each round. It also softens a run of bad luck — like a
+          strong player stuck with a weak partner — so a tough day with the wrong partner doesn't
+          drag someone's standing down on its own.
+        </p>
       </section>
     </div>
   );
