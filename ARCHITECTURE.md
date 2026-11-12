@@ -164,7 +164,10 @@ On top of that, `BackupTablesFn` (`infra/lambda/backup-tables`) scans
 every table above once daily (`BackupTablesSchedule`, 03:00 UTC cron)
 and writes one plain JSON array per table to `BackupBucket`
 (`s3://<bucket>/<YYYY-MM-DD>/<TableName>.json`), which expires objects
-after 28 days via an S3 lifecycle rule. This is deliberately a plain
+after 28 days via an S3 lifecycle rule. The bucket is versioned,
+TLS-only (`enforceSSL`) and private, since these dumps include
+participants' phone numbers; an expired snapshot's last version is
+removed for good a week after it expires. This is deliberately a plain
 `Scan` + `JSON.stringify`, not DynamoDB's native `ExportTableToPointInTime`:
 these tables are tiny (low hundreds of items at most), so the RCU cost
 of a daily scan is negligible, and a flat, human-readable JSON file per

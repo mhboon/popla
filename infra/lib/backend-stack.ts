@@ -695,10 +695,29 @@ export class PoplaBackendStack extends Stack {
     const backupBucket = new s3.Bucket(this, 'BackupBucket', {
       removalPolicy: RemovalPolicy.RETAIN,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      // This bucket holds the Players table, phone numbers included.
+      // Encryption at rest is S3's default anyway; stated so it can't
+      // silently change. enforceSSL adds a bucket policy denying any
+      // request not made over TLS.
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      // An overwrite or delete keeps the previous copy as a noncurrent
+      // version instead of destroying it — matters most for
+      // deleted-matchdays/, the only copy of whatever was deleted.
+      versioned: true,
       // Scoped to daily/ so the rolling nightly snapshots age out, while
-      // deleted-matchdays/ (see delete-latest-matchday below) — the only
-      // copy of whatever it deleted — is kept indefinitely instead.
-      lifecycleRules: [{ prefix: 'daily/', expiration: Duration.days(28) }],
+      // deleted-matchdays/ (see delete-latest-matchday below) is kept
+      // indefinitely instead. With versioning on, expiry only hides an
+      // object behind a delete marker — noncurrentVersionExpiration is
+      // what actually removes it (a week later), so the phone numbers in
+      // old snapshots don't pile up forever.
+      lifecycleRules: [
+        {
+          prefix: 'daily/',
+          expiration: Duration.days(28),
+          noncurrentVersionExpiration: Duration.days(7),
+        },
+      ],
     });
 
     const backupTables = [
