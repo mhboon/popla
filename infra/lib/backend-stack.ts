@@ -123,18 +123,6 @@ export class PoplaBackendStack extends Stack {
       sortKey: { name: 'winnerPoints', type: dynamodb.AttributeType.NUMBER },
     });
 
-    // Stores the current OTP code + per-phone SMS send-rate state for the
-    // CUSTOM_AUTH challenge Lambdas below (create-auth-challenge reads/
-    // writes it; nothing else touches it). TTL'd well past the rate
-    // window so stale rows clean themselves up.
-    const otpChallengesTable = new dynamodb.Table(this, 'OtpChallengesTable', {
-      tableName: 'PoplaOtpChallenges',
-      partitionKey: { name: 'phone', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: RemovalPolicy.DESTROY,
-      timeToLiveAttribute: 'ttl',
-    });
-
     // ---- Cognito ----
 
     // Construct ID is 'UserPoolV2', not 'UserPool': switching
@@ -166,71 +154,25 @@ export class PoplaBackendStack extends Stack {
       groupName: 'Admins',
     });
 
-    // Passwordless SMS-OTP login for everyone — admins and participants
-    // alike (see ARCHITECTURE.md's Auth section). Every Cognito user in
-    // this pool, admin or not, is created with Username = their E.164
-    // phone number; `custom: true` enables the CUSTOM_AUTH flow that the
-    // three challenge Lambdas below implement.
+    // Username + password (SRP) is the only sign-in flow — every Cognito
+    // user in this pool, admin or not, is created with Username = their
+    // phone number (see ARCHITECTURE.md's Auth section). A first or
+    // forgotten password is an admin-issued temporary one
+    // (resetParticipantPassword below), never a self-service flow, so no
+    // other auth flow is enabled here: the earlier SMS-code flow
+    // (CUSTOM_AUTH) was removed rather than merely hidden in the UI,
+    // because an enabled flow is callable straight against Cognito with
+    // the public client ID whether or not the app links to it.
     // preventUserExistenceErrors masks "phone not registered" vs "wrong
-    // code" so the app can't be used to enumerate registered numbers —
-    // the challenge Lambdas below handle the resulting
-    // `userNotFound: true` branch explicitly.
+    // password", so the app can't be used to enumerate registered numbers.
     const userPoolClient = userPool.addClient('WebClient', {
-      // `userSrp: true` enables the username+password login added
-      // alongside OTP — see the setMyPassword Lambda below and
-      // ARCHITECTURE.md's Auth section. OTP (`custom: true`) remains the
-      // only way to ever prove phone ownership; password is purely a
-      // faster-return-visit shortcut layered on top, set/reset through
-      // setMyPassword once an OTP sign-in has already authenticated the
-      // caller.
-      authFlows: { custom: true, userSrp: true },
+      authFlows: { userSrp: true },
       preventUserExistenceErrors: true,
       // Matches CDK's own default; set explicitly for documentation —
-      // long enough that a participant isn't re-verifying by SMS on
-      // every visit, given the AuthContext silent-refresh loop.
+      // long enough that nobody is asked for their password on every
+      // visit, given the AuthContext silent-refresh loop.
       refreshTokenValidity: Duration.days(30),
     });
-
-    // ---- Cognito CUSTOM_AUTH challenge Lambdas (SMS OTP) ----
-
-    const defineAuthChallengeFn = new NodejsFunction(this, 'DefineAuthChallengeFn', {
-      entry: path.join(__dirname, '../lambda/define-auth-challenge/index.ts'),
-      runtime: lambda.Runtime.NODEJS_22_X,
-      timeout: Duration.seconds(5),
-    });
-
-    const createAuthChallengeFn = new NodejsFunction(this, 'CreateAuthChallengeFn', {
-      entry: path.join(__dirname, '../lambda/create-auth-challenge/index.ts'),
-      runtime: lambda.Runtime.NODEJS_22_X,
-      timeout: Duration.seconds(10),
-      environment: { OTP_CHALLENGES_TABLE: otpChallengesTable.tableName },
-    });
-    otpChallengesTable.grantReadWriteData(createAuthChallengeFn);
-    // Direct-to-phone-number SNS Publish can't be scoped tighter than '*'.
-    createAuthChallengeFn.addToRolePolicy(
-      new iam.PolicyStatement({ actions: ['sns:Publish'], resources: ['*'] })
-    );
-
-    const verifyAuthChallengeResponseFn = new NodejsFunction(
-      this,
-      'VerifyAuthChallengeResponseFn',
-      {
-        entry: path.join(__dirname, '../lambda/verify-auth-challenge-response/index.ts'),
-        runtime: lambda.Runtime.NODEJS_22_X,
-        timeout: Duration.seconds(5),
-        environment: { OTP_CHALLENGES_TABLE: otpChallengesTable.tableName },
-      }
-    );
-    otpChallengesTable.grantReadData(verifyAuthChallengeResponseFn);
-
-    // addTrigger auto-grants Cognito permission to invoke each function —
-    // no manual resource policy needed.
-    userPool.addTrigger(cognito.UserPoolOperation.DEFINE_AUTH_CHALLENGE, defineAuthChallengeFn);
-    userPool.addTrigger(cognito.UserPoolOperation.CREATE_AUTH_CHALLENGE, createAuthChallengeFn);
-    userPool.addTrigger(
-      cognito.UserPoolOperation.VERIFY_AUTH_CHALLENGE_RESPONSE,
-      verifyAuthChallengeResponseFn
-    );
 
     // ---- AppSync ----
 
@@ -696,27 +638,6 @@ export class PoplaBackendStack extends Stack {
       code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.demoteFromAdmin.js')),
     });
 
-    const setMyPasswordFn = new NodejsFunction(this, 'SetMyPasswordFn', {
-      entry: path.join(__dirname, '../lambda/set-my-password/index.ts'),
-      runtime: lambda.Runtime.NODEJS_22_X,
-      timeout: Duration.seconds(10),
-      environment: { USER_POOL_ID: userPool.userPoolId },
-    });
-    setMyPasswordFn.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ['cognito-idp:AdminSetUserPassword'],
-        resources: [userPool.userPoolArn],
-      })
-    );
-
-    const setMyPasswordDS = api.addLambdaDataSource('SetMyPasswordDataSource', setMyPasswordFn);
-    setMyPasswordDS.createResolver('MutationSetMyPasswordResolver', {
-      typeName: 'Mutation',
-      fieldName: 'setMyPassword',
-      runtime: JS_RUNTIME,
-      code: appsync.Code.fromAsset(path.join(RESOLVERS_DIR, 'Mutation.setMyPassword.js')),
-    });
-
     const resetParticipantPasswordFn = new NodejsFunction(this, 'ResetParticipantPasswordFn', {
       entry: path.join(__dirname, '../lambda/reset-participant-password/index.ts'),
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -769,9 +690,7 @@ export class PoplaBackendStack extends Stack {
     // On top of PITR (35-day continuous point-in-time recovery, enabled
     // on every table above) — a durable, exportable daily snapshot,
     // retained 4 weeks, independent of PITR's window and restore
-    // mechanism. PoplaOtpChallenges is deliberately excluded, same
-    // reasoning as its missing pointInTimeRecoverySpecification: it's
-    // TTL'd ephemeral codes, not data worth recovering.
+    // mechanism.
 
     const backupBucket = new s3.Bucket(this, 'BackupBucket', {
       removalPolicy: RemovalPolicy.RETAIN,

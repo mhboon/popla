@@ -11,59 +11,23 @@ const userPool = new CognitoUserPool({
   ClientId: config.userPoolClientId,
 });
 
-export type SubmitCodeResult =
-  | { type: 'success'; session: CognitoUserSession }
-  | { type: 'incorrect'; submitCode: (code: string) => Promise<SubmitCodeResult> };
-
-export type OtpResult = {
-  type: 'codeRequired';
-  submitCode: (code: string) => Promise<SubmitCodeResult>;
-};
-
-/**
- * Passwordless login, for everyone — admin and participant alike, see
- * ARCHITECTURE.md's Auth section — via Cognito's CUSTOM_AUTH flow:
- * phone number in, an SMS code goes out, submitCode verifies it. A wrong
- * code (under the trigger Lambdas' attempt cap) re-issues another
- * challenge rather than failing outright, hence the recursive
- * `submitCode` on the 'incorrect' branch rather than a rejected promise.
- */
-export function requestOtp(phone: string): Promise<OtpResult> {
-  return new Promise((resolve, reject) => {
-    const cognitoUser = new CognitoUser({ Username: phone, Pool: userPool });
-    const authDetails = new AuthenticationDetails({ Username: phone });
-    cognitoUser.initiateAuth(authDetails, {
-      customChallenge: () =>
-        resolve({
-          type: 'codeRequired',
-          submitCode: (code) => answerChallenge(cognitoUser, code),
-        }),
-      onSuccess: () => reject(new Error('Unexpected: signed in before a code was requested')),
-      onFailure: reject,
-    });
-  });
-}
-
 export type LoginResult =
   | { type: 'success'; session: CognitoUserSession }
-  // Reachable when an admin issues a non-permanent temporary password via
-  // `aws cognito-idp admin-set-user-password` (no `--permanent`) from the
-  // AWS console/CLI — a manual reset path for when OTP delivery isn't an
-  // option. Cognito puts the user in FORCE_CHANGE_PASSWORD and rejects
+  // Reachable when an admin issues a temporary password — in-app via
+  // resetParticipantPassword, or `aws cognito-idp admin-set-user-password`
+  // (no `--permanent`) from the AWS CLI. This is how everyone gets their
+  // first password, and how a forgotten one is replaced. Cognito puts
+  // the user in FORCE_CHANGE_PASSWORD and rejects
   // the temp password for anything but completing this challenge; doing
-  // so both signs the user in and sets it as their new real password —
-  // no separate setMyPassword call needed. See ARCHITECTURE.md's Auth
-  // section.
+  // so both signs the user in and sets it as their new real password.
+  // See ARCHITECTURE.md's Auth section.
   | { type: 'newPasswordRequired'; completeNewPassword: (newPassword: string) => Promise<CognitoUserSession> };
 
 /**
- * Username+password login (USER_SRP_AUTH) — the default, faster-return-
- * visit path once a password has been set. Two ways to get one: OTP sign-
- * in + setMyPassword (self-service), or an admin issuing a temporary
- * password via the AWS console/CLI (manual reset) — the latter surfaces
- * as the 'newPasswordRequired' branch below. OTP (requestOtp above)
- * remains the only way to actually prove phone ownership in the
- * self-service case.
+ * Username+password login (USER_SRP_AUTH) — the only sign-in flow. A
+ * first password, or a replacement for a forgotten one, is always an
+ * admin-issued temporary password, which surfaces as the
+ * 'newPasswordRequired' branch below.
  */
 export function login(username: string, password: string): Promise<LoginResult> {
   return new Promise((resolve, reject) => {
@@ -94,26 +58,10 @@ export function login(username: string, password: string): Promise<LoginResult> 
   });
 }
 
-function answerChallenge(cognitoUser: CognitoUser, code: string): Promise<SubmitCodeResult> {
-  return new Promise((resolve, reject) => {
-    cognitoUser.sendCustomChallengeAnswer(code, {
-      onSuccess: (session) => resolve({ type: 'success', session }),
-      onFailure: reject,
-      customChallenge: () =>
-        resolve({
-          type: 'incorrect',
-          submitCode: (nextCode) => answerChallenge(cognitoUser, nextCode),
-        }),
-    });
-  });
-}
-
 /**
  * Change the signed-in user's own password, given their current one.
  * Cognito's ChangePassword API verifies oldPassword itself (rejects with
- * NotAuthorizedException if it's wrong) — no backend call needed, unlike
- * setMyPassword above, which exists precisely because there's no old
- * password to check in the OTP-triggered set/reset case.
+ * NotAuthorizedException if it's wrong) — no backend call needed.
  */
 export function changePassword(oldPassword: string, newPassword: string): Promise<void> {
   return new Promise((resolve, reject) => {

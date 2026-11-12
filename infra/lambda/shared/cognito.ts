@@ -1,12 +1,11 @@
 import { randomInt, randomUUID } from 'crypto';
 
-// Cognito requires a password even though this app never uses one —
-// login is passwordless CUSTOM_AUTH only, no password auth flow is
-// enabled on the User Pool Client (see ARCHITECTURE.md's Auth section).
-// AdminSetUserPassword with Permanent: true moves a freshly created user
-// out of FORCE_CHANGE_PASSWORD, which custom-auth logins otherwise get
-// stuck behind. The value is discarded immediately after use — nothing
-// can ever actually authenticate with it.
+// A placeholder password for a freshly created Cognito user, so the
+// account isn't left on Cognito's own generated temporary password. The
+// value is 122 bits of randomness and discarded immediately after use —
+// nobody can sign in with it. The user's first real password is an
+// admin-issued temporary one (randomTemporaryPassword below, via
+// resetParticipantPassword) — see ARCHITECTURE.md's Auth section.
 export function randomUnusedPassword(): string {
   return `${randomUUID()}Aa1!`;
 }

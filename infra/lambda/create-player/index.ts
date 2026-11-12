@@ -35,8 +35,8 @@ export const handler = async (event: { arguments: CreatePlayerArgs }) => {
   if (phone) {
     // Cognito Username = the phone number itself, not an alias — see
     // ARCHITECTURE.md's Auth section for why. MessageAction: SUPPRESS
-    // means Cognito never sends its own message; only our OTP SMS
-    // (create-auth-challenge) is ever sent to this number.
+    // means Cognito never sends its own message — nothing is ever sent
+    // to this number.
     try {
       const { User } = await cognito.send(
         new AdminCreateUserCommand({
@@ -46,8 +46,8 @@ export const handler = async (event: { arguments: CreatePlayerArgs }) => {
         })
       );
       cognitoSub = User?.Attributes?.find((a) => a.Name === 'sub')?.Value;
-      // Otherwise the user is stuck in FORCE_CHANGE_PASSWORD forever —
-      // see infra/lambda/shared/cognito.ts.
+      // Replaces Cognito's own generated temporary password with an
+      // unusable placeholder — see infra/lambda/shared/cognito.ts.
       await cognito.send(
         new AdminSetUserPasswordCommand({
           UserPoolId: USER_POOL_ID,

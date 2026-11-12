@@ -362,16 +362,14 @@ separate admin login.
 ### Phase 2
 
 - Individual login for **everyone** — participants and admins alike.
-  Phone number → SMS code (10 min validity) is how everyone signs in the
-  first time and is the self-service way to (re)set a password; once
-  set, a password signs in faster on return visits without waiting on an
-  SMS. There's no separate self-service forgot-password flow to build
-  beyond the SMS-code sign-in itself — requesting a fresh code and
-  setting a new password covers it. If someone can't complete that (lost
-  the phone, SMS not arriving), an admin can also issue a one-time
-  temporary password from outside the app — see README.md's Resetting a
-  password. A participant's phone number is admin-registered only (no
-  public self-signup); an admin can change it later, except for a
+  Sign-in is phone number + password. There is no self-service way to
+  get or recover a password, and the app never sends an SMS: an admin
+  issues a one-time temporary password (in-app from the participant's
+  page, or from outside the app — see README.md's Resetting a password)
+  and the participant must replace it with their own at their next
+  sign-in. That covers both a new participant's first sign-in and a
+  forgotten password. A participant's phone number is admin-registered
+  only (no public self-signup); an admin can change it later, except for a
   participant who is themselves an admin (see Roles & Access below).
   See `ARCHITECTURE.md`'s Auth section for the Cognito implementation.
 - Logged-in, non-admin participants can, beyond viewing seasons and

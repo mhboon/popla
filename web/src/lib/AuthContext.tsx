@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
 
     // The refresh token is valid for 30 days (see backend-stack.ts) so a
-    // participant isn't re-verifying by SMS on every visit — but that's
+    // participant isn't typing their password on every visit — but that's
     // pointless unless the short-lived (~1hr) cached ID token actually
     // gets renewed in the background while a tab stays open. getSession()
     // silently refreshes via the stored refresh token when the cached

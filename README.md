@@ -126,7 +126,7 @@ From here on, every push to `main` runs `.github/workflows/deploy.yml`.
 
 ## Admin users
 
-Login is SMS OTP + an optional password, for everyone, admin and
+Login is phone number + password, for everyone, admin and
 participant alike (see `ARCHITECTURE.md`'s Auth section) — a Cognito
 user's `Username` is their international phone number, digits only, no
 leading `+` (e.g. `31612345678`, not `+31612345678`), and admin is just
@@ -150,18 +150,21 @@ login), register it as a participant through the app first — that
 provisions the same Cognito user for you — then just run the
 `admin-add-user-to-group` command above.
 
-Note: `admin-create-user` here still uses `--message-action SUPPRESS` and
-sets no password — a manually-created user has none until they sign in
-once by SMS code and set one (in-app, via "Set a password"); until then
-they can only sign in by code, same as any freshly-registered
-participant.
+Note: `admin-create-user` here uses `--message-action SUPPRESS`, so
+Cognito sends nothing and the new user has no password they know. Give
+them a temporary one with the `admin-set-user-password` command below
+(Resetting a password) — the app then asks them to choose their own on
+first sign-in.
 
 ## Resetting a password
 
-Anyone can always fall back to "Sign in with a code" on the login page —
-that's still the only way to actually prove phone ownership. But if
-someone specifically wants their password reset (lost it, suspicious
-activity, etc.), an admin can do it from outside the app:
+There is no self-service "forgot password" — an admin issues a temporary
+password, and the app makes the user replace it at their next sign-in.
+This is also how every new participant gets their first password.
+
+From inside the app: open the participant's page and click **Reset
+password** (see the admin manual). From outside the app — needed for the
+very first admin, or if no admin can sign in:
 
 ```bash
 aws cognito-idp admin-set-user-password --user-pool-id <UserPoolId> \
@@ -170,7 +173,7 @@ aws cognito-idp admin-set-user-password --user-pool-id <UserPoolId> \
 
 Deliberately *without* `--permanent` — that leaves the user in
 `FORCE_CHANGE_PASSWORD`. The next time they sign in with that temporary
-password (via "Sign in", not "Sign in with a code"), the app takes them
+password, the app takes them
 straight to a "Set a new password" screen instead of logging them
 in — choosing one there both replaces it and signs them in, in one step.
 Same Cognito password policy as everywhere else (min. 8 characters,
