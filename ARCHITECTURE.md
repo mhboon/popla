@@ -43,6 +43,12 @@ sync automatically.
   Cognito auth via `amazon-cognito-identity-js`, `USER_SRP_AUTH`
   (phone number + password) only — see the Auth section below.
 - **Frontend hosting:** S3 (private, Origin Access Control) + CloudFront.
+  CloudFront attaches security headers to every response
+  (`infra/lib/web-stack.ts`): a Content-Security-Policy that only lets
+  the page load its own scripts, Google Fonts, and talk to AppSync and
+  Cognito in the deploy region, plus HSTS and a no-framing rule. Anything
+  new the frontend loads from another origin (a script, a font, an API)
+  has to be added to that policy, or the browser blocks it.
 - **API:** AWS AppSync (GraphQL), Cognito User Pool authorizer.
 - **Business logic:** AppSync JS (native) resolvers to DynamoDB for CRUD/
   reads and simple writes; Lambda resolvers for the two operations with
