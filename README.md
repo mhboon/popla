@@ -199,3 +199,5 @@ this automatically:
 ```bash
 npm run docs:admin-manual
 ```
+
+<!-- pipeline check: verifies the tightened OIDC deploy role can still assume from main -->
