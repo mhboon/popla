@@ -9,7 +9,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "docs:admin-manual": "node scripts/generate-admin-manual-pdf.mjs"
   },
   "lint-staged": {
     "infra/**/*.ts": [

@@ -15,6 +15,7 @@ import { MatchdaysPage } from './pages/MatchdaysPage';
 import { MatchdaySetupPage } from './pages/MatchdaySetupPage';
 import { MatchdayPage } from './pages/MatchdayPage';
 import { DeleteMatchdayPage } from './pages/DeleteMatchdayPage';
+import { ManualPage } from './pages/ManualPage';
 
 // "/" itself: the login page when signed out, a real home page when
 // signed in — not a redirect into whichever section an admin vs.
@@ -129,6 +130,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <DeleteMatchdayPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/manual"
+            element={
+              <ProtectedRoute>
+                <ManualPage />
               </ProtectedRoute>
             }
           />

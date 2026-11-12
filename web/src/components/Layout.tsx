@@ -36,6 +36,11 @@ export function Layout({ children }: { children: ReactNode }) {
               <Link to="/matchdays" onClick={closeMenu}>
                 Matchdays
               </Link>
+              {user.isAdmin && (
+                <Link to="/manual" onClick={closeMenu}>
+                  Manual
+                </Link>
+              )}
               <Link to="/account" onClick={closeMenu}>
                 Account
               </Link>

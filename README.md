@@ -155,3 +155,24 @@ straight to a "Set a new password" screen instead of logging them
 in — choosing one there both replaces it and signs them in, in one step.
 Same Cognito password policy as everywhere else (min. 8 characters,
 upper/lowercase, a number, a symbol).
+
+## Admin manual
+
+A how-to manual for admins (starting/closing seasons, running a
+matchday, managing participants and guests, promoting admins,
+resetting passwords) is available two ways, both from the same content
+(`web/src/content/adminManual.json`) so they can't drift apart:
+
+- In-app, at `/manual` — admin-only, linked from the menu, with an
+  English/Dutch toggle.
+- As a PDF, committed at [`docs/admin-manual-en.pdf`](docs/admin-manual-en.pdf)
+  and [`docs/admin-manual-nl.pdf`](docs/admin-manual-nl.pdf) — for
+  printing or sharing with an admin who isn't at a screen.
+
+Regenerate both PDFs (via Playwright, already a root dev dependency)
+after editing the JSON content, and commit the result — nothing does
+this automatically:
+
+```bash
+npm run docs:admin-manual
+```

@@ -1,0 +1,332 @@
+{
+  "title": { "en": "Popla Cup — Admin Manual", "nl": "Popla Cup — Beheerdershandleiding" },
+  "intro": {
+    "en": "A how-to reference for everything an admin can do in the app, grouped by section. It assumes you're already signed in with an admin account.",
+    "nl": "Een praktische handleiding voor alles wat een beheerder in de app kan doen, per onderdeel gegroepeerd. Je bent hierbij al ingelogd met een beheerdersaccount."
+  },
+  "sections": [
+    {
+      "id": "overview",
+      "title": { "en": "Getting around as an admin", "nl": "Navigeren als beheerder" },
+      "blocks": [
+        {
+          "type": "p",
+          "en": "Admin is a role on your account, not a separate login — there's no need to switch between \"admin mode\" and \"participant mode\". As soon as you're signed in with an admin account, the admin controls simply appear alongside the normal participant screens.",
+          "nl": "Beheerder zijn is een rol op je account, geen apart account — je hoeft niet te wisselen tussen een 'beheerder-modus' en een 'deelnemer-modus'. Zodra je ingelogd bent met een beheerdersaccount, verschijnen de beheerdersopties automatisch naast de normale schermen voor deelnemers."
+        },
+        {
+          "type": "p",
+          "en": "Open the menu (the icon in the top-right corner) to get around. Participants and this Manual only show up there for admins; Seasons, Matchdays and Account are visible to everyone who's signed in.",
+          "nl": "Gebruik het menu (het icoon rechtsboven) om te navigeren. Deelnemers en deze Handleiding zijn daar alleen zichtbaar voor beheerders; Seizoenen, Matchdays en Account zijn zichtbaar voor iedereen die ingelogd is."
+        },
+        {
+          "type": "note",
+          "en": "If a page tells you \"Your account isn't in the Admins group,\" ask another admin to promote you (see Managing participants → Promoting and demoting admins). The very first admin on a brand-new system is set up directly in the AWS console, not through the app — see README.md.",
+          "nl": "Als een pagina meldt dat je account niet in de Admins-groep staat, vraag dan een andere beheerder om je te promoveren (zie Deelnemers beheren → Beheerders aanstellen en terugzetten). De allereerste beheerder op een nieuw systeem wordt rechtstreeks via de AWS-console ingesteld, niet via de app — zie README.md."
+        }
+      ]
+    },
+    {
+      "id": "participants",
+      "title": { "en": "Managing participants", "nl": "Deelnemers beheren" },
+      "blocks": [
+        {
+          "type": "h3",
+          "en": "Adding a participant",
+          "nl": "Een deelnemer toevoegen"
+        },
+        {
+          "type": "p",
+          "en": "Open Participants from the menu. Under \"Register participant\", fill in a Name and, optionally, a Phone number, then click Register.",
+          "nl": "Open Deelnemers via het menu. Vul bij 'Register participant' een naam in en eventueel een telefoonnummer, en klik op Register."
+        },
+        {
+          "type": "ul",
+          "en": [
+            "A phone number lets that person sign in themselves (by SMS code) and makes them a full participant.",
+            "Leave Phone blank to register a guest instead — someone with no login of their own (see Guests below).",
+            "Tick Admin to make them an admin right away. This checkbox only unlocks once a phone number is filled in, since admin access requires being able to log in."
+          ],
+          "nl": [
+            "Met een telefoonnummer kan die persoon zelf inloggen (via een sms-code) en is hij of zij een volwaardige deelnemer.",
+            "Laat Phone leeg om in plaats daarvan een gast te registreren — iemand zonder eigen login (zie Gasten hieronder).",
+            "Vink Admin aan om iemand direct beheerder te maken. Dit vakje is alleen beschikbaar zodra er een telefoonnummer is ingevuld, omdat beheerderstoegang inloggen vereist."
+          ]
+        },
+        {
+          "type": "note",
+          "en": "You can also add a brand-new participant straight from a matchday's setup screen with \"+ New participant\", without leaving that page.",
+          "nl": "Je kunt ook rechtstreeks vanaf het instelscherm van een matchday een nieuwe deelnemer toevoegen via '+ New participant', zonder die pagina te verlaten."
+        },
+        {
+          "type": "h3",
+          "en": "Editing a participant",
+          "nl": "Een deelnemer bewerken"
+        },
+        {
+          "type": "p",
+          "en": "Open Participants, click a participant's name to open their page, then click Edit. Change their Name or Phone and click Save.",
+          "nl": "Open Deelnemers, klik op de naam van een deelnemer om hun pagina te openen, en klik op Edit. Wijzig de naam of het telefoonnummer en klik op Save."
+        },
+        {
+          "type": "note",
+          "en": "An admin's own phone number can't be changed from this screen (the field is disabled) — remove their admin status first, or make the change in the AWS console.",
+          "nl": "Het telefoonnummer van een beheerder kan niet via dit scherm worden gewijzigd (het veld is uitgeschakeld) — haal eerst de beheerdersstatus weg, of pas het aan via de AWS-console."
+        },
+        {
+          "type": "h3",
+          "en": "Guests",
+          "nl": "Gasten"
+        },
+        {
+          "type": "p",
+          "en": "A guest is a participant with no phone number. Guests appear exactly like anyone else in a matchday's roster and day ranking, but are left out of every season-level ranking (season points, round winners, and the weighted ranking).",
+          "nl": "Een gast is een deelnemer zonder telefoonnummer. Gasten verschijnen op precies dezelfde manier als iedereen in de deelnemerslijst en de dagranglijst van een matchday, maar ze tellen niet mee in de seizoensranglijsten (seizoenspunten, rondewinnaars en de gewogen ranglijst)."
+        },
+        {
+          "type": "p",
+          "en": "To turn a guest into a full participant, open their page, click Edit, fill in a Phone number, and Save — that's also what gives them the ability to sign in. Clearing a participant's phone number the same way reverts them to guest status.",
+          "nl": "Om een gast om te zetten naar een volwaardige deelnemer, open je hun pagina, klik je op Edit, vul je een telefoonnummer in en klik je op Save — daarmee kunnen ze meteen ook zelf inloggen. Het telefoonnummer op dezelfde manier weer wissen, maakt iemand weer gast."
+        },
+        {
+          "type": "note",
+          "en": "Season points keep accruing for a guest behind the scenes even while they're excluded from the ranking — promoting them later brings their full season total into view, nothing is lost.",
+          "nl": "Seizoenspunten blijven voor een gast op de achtergrond gewoon oplopen, ook al staan ze niet in de ranglijst — zet je ze later om naar volwaardig deelnemer, dan verschijnt hun volledige seizoenstotaal direct, er gaat niets verloren."
+        },
+        {
+          "type": "h3",
+          "en": "Promoting and demoting admins",
+          "nl": "Beheerders aanstellen en terugzetten"
+        },
+        {
+          "type": "p",
+          "en": "Open a participant's page (they need a phone number first), click Edit, tick or untick Admin, then Save.",
+          "nl": "Open de pagina van een deelnemer (deze moet eerst een telefoonnummer hebben), klik op Edit, vink Admin aan of uit, en klik op Save."
+        },
+        {
+          "type": "ul",
+          "en": [
+            "You can't demote yourself — that's deliberate, so the promote/demote screen never ends up unreachable because you were the only admin left. Ask another admin to do it instead.",
+            "The very first admin on a system, or an admin not tied to any participant record at all, is set up directly in the AWS console rather than through this screen."
+          ],
+          "nl": [
+            "Je kunt jezelf niet terugzetten — dat is bewust zo, zodat het aanstellen/terugzetten van beheerders nooit onbereikbaar wordt omdat jij de enige beheerder was. Vraag een andere beheerder om dit voor je te doen.",
+            "De allereerste beheerder op een systeem, of een beheerder die aan geen enkele deelnemer gekoppeld is, wordt rechtstreeks via de AWS-console ingesteld, niet via dit scherm."
+          ]
+        },
+        {
+          "type": "h3",
+          "en": "Resetting a participant's password",
+          "nl": "Het wachtwoord van een deelnemer resetten"
+        },
+        {
+          "type": "p",
+          "en": "Open the participant's page and click Reset password (not shown for guests, who have no login to reset). This issues a one-time temporary password, shown right there on screen — use Share login to put it straight into a ready-to-send message.",
+          "nl": "Open de pagina van de deelnemer en klik op Reset password (niet beschikbaar bij gasten, die geen login hebben om te resetten). Dit maakt een eenmalig tijdelijk wachtwoord aan, dat direct op het scherm getoond wordt — gebruik Share login om het meteen in een verzendklaar berichtje te zetten."
+        },
+        {
+          "type": "p",
+          "en": "The next time that person signs in with the temporary password, the app takes them straight to a \"Set a new password\" screen instead of logging them in directly.",
+          "nl": "Zodra die persoon vervolgens inlogt met het tijdelijke wachtwoord, stuurt de app hen direct naar een scherm om een nieuw wachtwoord in te stellen, in plaats van ze meteen in te loggen."
+        },
+        {
+          "type": "note",
+          "en": "Anyone can also fall back on \"Sign in with a code\" on the login page themselves, without needing an admin at all — that's the quickest option whenever it's available to them.",
+          "nl": "Iedereen kan op het inlogscherm ook zelf 'Sign in with a code' gebruiken, zonder dat daar een beheerder voor nodig is — dat is de snelste optie wanneer die voor hen beschikbaar is."
+        }
+      ]
+    },
+    {
+      "id": "seasons",
+      "title": { "en": "Seasons", "nl": "Seizoenen" },
+      "blocks": [
+        {
+          "type": "h3",
+          "en": "Starting a season",
+          "nl": "Een seizoen starten"
+        },
+        {
+          "type": "p",
+          "en": "Open Seasons from the menu. If there's no active season, fill in a Name and Start date under \"Start a new season\" and click Create season.",
+          "nl": "Open Seizoenen via het menu. Als er geen actief seizoen is, vul je bij 'Start a new season' een naam en startdatum in en klik je op Create season."
+        },
+        {
+          "type": "note",
+          "en": "Only one season can be active at a time — \"Create season\" stays disabled while another season is still active. Close that one first (see below).",
+          "nl": "Er kan maar één seizoen actief zijn tegelijk — 'Create season' blijft uitgeschakeld zolang een ander seizoen nog actief is. Sluit dat seizoen eerst af (zie hieronder)."
+        },
+        {
+          "type": "h3",
+          "en": "Viewing rankings",
+          "nl": "Ranglijsten bekijken"
+        },
+        {
+          "type": "p",
+          "en": "Click any season in the list to open its ranking page. Four tabs (a dropdown on narrow screens) cover Ranking (season points), Round winners, Weighted ranking, and Matchdays — visible to every signed-in participant, not just admins.",
+          "nl": "Klik op een seizoen in de lijst om de ranglijstpagina te openen. Vier tabs (op kleine schermen een keuzelijst) tonen Ranking (seizoenspunten), Round winners, Weighted ranking en Matchdays — zichtbaar voor elke ingelogde deelnemer, niet alleen beheerders."
+        },
+        {
+          "type": "h3",
+          "en": "Closing and reopening a season",
+          "nl": "Een seizoen afsluiten en heropenen"
+        },
+        {
+          "type": "p",
+          "en": "On a season's ranking page, click Close season and confirm. This finalizes the season — its matchdays, results, and rankings stay fully viewable afterwards, indefinitely.",
+          "nl": "Klik op de ranglijstpagina van een seizoen op Close season en bevestig. Dit sluit het seizoen definitief af — de matchdays, resultaten en ranglijsten blijven daarna onbeperkt zichtbaar."
+        },
+        {
+          "type": "p",
+          "en": "Need to undo that? Open the closed season and click Reopen season — only possible while no other season is currently active.",
+          "nl": "Moet dat ongedaan gemaakt worden? Open het afgesloten seizoen en klik op Reopen season — dit kan alleen als er op dat moment geen ander seizoen actief is."
+        },
+        {
+          "type": "note",
+          "en": "Closing a season doesn't delete anything — the records stay exactly as they were, they simply stop accumulating new matchdays until a new season is started.",
+          "nl": "Een seizoen afsluiten verwijdert niets — de gegevens blijven precies zoals ze waren, er worden alleen geen nieuwe matchdays meer aan toegevoegd totdat een nieuw seizoen gestart wordt."
+        }
+      ]
+    },
+    {
+      "id": "matchdays",
+      "title": { "en": "Running a matchday", "nl": "Een matchday organiseren" },
+      "blocks": [
+        {
+          "type": "h3",
+          "en": "Creating a matchday",
+          "nl": "Een matchday aanmaken"
+        },
+        {
+          "type": "p",
+          "en": "Open Matchdays from the menu and click New matchday — only available while a season is active. Fill in the Date, an optional Time, and the Tournament style (Mexicano, Mexicano Special, Americano, or Hanne Special).",
+          "nl": "Open Matchdays via het menu en klik op New matchday — alleen beschikbaar als er een actief seizoen is. Vul de datum in, eventueel een tijdstip, en kies de toernooivorm (Mexicano, Mexicano Special, Americano of Hanne Special)."
+        },
+        {
+          "type": "ul",
+          "en": [
+            "Allow self-registration: when ticked, participants can register or unregister themselves for this matchday right up until it starts. When unticked, only admins can add or remove participants. Either way, you can keep adding or removing anyone yourself at any time before it starts.",
+            "Max participants (optional): caps the roster. Anyone joining past the cap — whether they registered themselves or you added them — is waitlisted instead of rejected, and automatically promoted when a confirmed spot opens up.",
+            "Participants: tick as many people as you already know are coming — as many or as few as you like, including none at all. You can add more later from the matchday page itself. Use \"+ New participant\" here to register someone new on the spot."
+          ],
+          "nl": [
+            "Allow self-registration: staat dit aan, dan kunnen deelnemers zichzelf aan- of afmelden voor deze matchday, tot het moment dat die begint. Staat het uit, dan kunnen alleen beheerders deelnemers toevoegen of verwijderen. In beide gevallen kun jij als beheerder altijd zelf iemand toevoegen of verwijderen voordat de matchday begint.",
+            "Max participants (optioneel): stelt een maximum aantal deelnemers in. Iedereen die daarboven aanmeldt — zelf of door jou toegevoegd — komt op de wachtlijst in plaats van een foutmelding te krijgen, en wordt automatisch doorgeschoven zodra er een vrije, bevestigde plek komt.",
+            "Participants: vink alle deelnemers aan die je al zeker weet — zo veel of zo weinig als je wilt, ook helemaal niemand. Je kunt er later vanaf de matchday-pagina zelf nog meer bijzetten. Gebruik hier '+ New participant' om direct iemand nieuw te registreren."
+          ]
+        },
+        {
+          "type": "p",
+          "en": "Click Continue to create the matchday and open its page.",
+          "nl": "Klik op Continue om de matchday aan te maken en de pagina ervan te openen."
+        },
+        {
+          "type": "h3",
+          "en": "Managing the roster before the matchday starts",
+          "nl": "De deelnemerslijst beheren voordat de matchday begint"
+        },
+        {
+          "type": "p",
+          "en": "A matchday that hasn't started shows its registered list and waiting list to everyone, plus a \"Finalize participants\" box for admins: tick or untick anyone in that multi-select, add a brand-new participant with \"+ New participant\" if needed, then click Update roster to apply the changes all at once.",
+          "nl": "Een matchday die nog niet begonnen is, toont de lijst van aanmeldingen en de wachtlijst aan iedereen, plus een 'Finalize participants'-blok voor beheerders: vink daar mensen aan of uit, voeg zo nodig een nieuwe deelnemer toe met '+ New participant', en klik daarna op Update roster om alle wijzigingen in één keer door te voeren."
+        },
+        {
+          "type": "note",
+          "en": "This bulk editor is a shortcut for exactly the same add/remove actions self-registering participants trigger themselves — it's meant for reviewing and adjusting the whole list at once right before starting play, not a separate mechanism.",
+          "nl": "Dit bewerkscherm is een snelkoppeling voor precies dezelfde aan- en afmeldacties die deelnemers ook zelf kunnen doen — het is bedoeld om de hele lijst in één keer te controleren en bij te werken, net voordat de matchday begint, niet een apart systeem."
+        },
+        {
+          "type": "h3",
+          "en": "Starting play",
+          "nl": "De matchday starten"
+        },
+        {
+          "type": "p",
+          "en": "Once the registered count is a non-zero multiple of 4, click Generate round 1. This locks in the current roster for good — anyone still waitlisted or who declined is dropped — and generates the first round's courts and pairings.",
+          "nl": "Zodra het aantal aanmeldingen een niet-nul veelvoud van 4 is, klik je op Generate round 1. Dit legt de deelnemerslijst definitief vast — iedereen die nog op de wachtlijst stond of had afgemeld, valt af — en genereert de banen en koppels voor de eerste ronde."
+        },
+        {
+          "type": "h3",
+          "en": "Running rounds",
+          "nl": "Rondes spelen"
+        },
+        {
+          "type": "p",
+          "en": "On a started matchday's Matches tab, each court shows its two teams. Click Edit (or the score fields appear right away for a fresh match) and pick each team's games won, then Save — a set is first to 6 games, no tiebreak, so any score from 0-6 up to 6-0 is valid.",
+          "nl": "Op de Matches-tab van een gestarte matchday zie je per baan de twee teams. Klik op Edit (bij een nieuwe wedstrijd staan de invoervelden al meteen open) en kies het aantal gewonnen games per team, en klik op Save — een set is eerst tot 6 games, zonder tiebreak, dus elke stand van 0-6 tot 6-0 is geldig."
+        },
+        {
+          "type": "p",
+          "en": "Once every court in the current round shows a saved score, Generate round {n+1} appears — click it to re-rank, re-pair, and open the next round.",
+          "nl": "Zodra op elke baan van de huidige ronde een score is opgeslagen, verschijnt Generate round {n+1} — klik daarop om opnieuw te rangschikken, nieuwe koppels te maken en de volgende ronde te openen."
+        },
+        {
+          "type": "ul",
+          "en": [
+            "Regenerate round: re-randomizes every court's pairing for the current round. Only offered while that round is completely untouched — the moment one score is recorded, reshuffling would discard a real result.",
+            "Switch players: swaps two specific players' court/team slots within the current round, for whenever the generated pairing needs a manual tweak."
+          ],
+          "nl": [
+            "Regenerate round: husselt de koppels van de huidige ronde opnieuw, volledig willekeurig. Dit kan alleen zolang er in die ronde nog geen enkele score is ingevoerd — zodra er één score staat, zou herschudden een echt resultaat weggooien.",
+            "Switch players: wisselt twee specifieke deelnemers van baan/team binnen de huidige ronde, voor als de automatisch gegenereerde indeling net even handmatig bijgestuurd moet worden."
+          ]
+        },
+        {
+          "type": "h3",
+          "en": "Replacing a participant mid-matchday",
+          "nl": "Een deelnemer vervangen tijdens een matchday"
+        },
+        {
+          "type": "p",
+          "en": "Once a matchday is underway, click Replace participant, choose who's leaving under Replace and who's taking their place under With, then confirm.",
+          "nl": "Zodra een matchday bezig is, klik je op Replace participant, kies je bij Replace wie vertrekt en bij With wie die plek overneemt, en bevestig je."
+        },
+        {
+          "type": "note",
+          "en": "This is a full identity swap for the entire matchday, including already-completed rounds — the incoming participant takes over every court, partner, and opponent assignment as if they'd been there from round 1, and the outgoing participant ends up with no trace left in that matchday at all (no stats, no day ranking position, no season points). Use it for a genuine \"this person had to leave, someone else is taking their spot\" situation, not for fixing a pairing — that's what Switch players is for.",
+          "nl": "Dit is een volledige identiteitswissel voor de hele matchday, inclusief al gespeelde rondes — de nieuwe deelnemer neemt elke baan-, partner- en tegenstanderstoewijzing over alsof hij of zij er vanaf ronde 1 bij was, en van de vertrekkende deelnemer blijft in die matchday helemaal niets meer over (geen statistieken, geen plek in de dagranglijst, geen seizoenspunten). Gebruik dit alleen als iemand écht moest afhaken en een ander zijn of haar plek overneemt — voor het rechtzetten van een koppel gebruik je Switch players."
+        },
+        {
+          "type": "h3",
+          "en": "Finishing a matchday",
+          "nl": "Een matchday afsluiten"
+        },
+        {
+          "type": "p",
+          "en": "Once the current round's scores are all in, click Finish matchday and confirm. This finalizes the day ranking and adds season points (and, where earned, a winner point) for every participant — it can't be undone.",
+          "nl": "Zodra alle scores van de huidige ronde zijn ingevoerd, klik je op Finish matchday en bevestig je. Dit legt de dagranglijst definitief vast en kent seizoenspunten toe (en, waar van toepassing, een 'winner point') aan elke deelnemer — dit kan niet ongedaan gemaakt worden."
+        },
+        {
+          "type": "h3",
+          "en": "Editing or deleting a matchday",
+          "nl": "Een matchday bewerken of verwijderen"
+        },
+        {
+          "type": "p",
+          "en": "Before a matchday has started, click Edit (next to its title) to change the date, time, format, or self-registration/capacity settings — the roster itself is managed from the matchday page, not here.",
+          "nl": "Voordat een matchday begonnen is, klik je op Edit (naast de titel) om de datum, het tijdstip, de toernooivorm of de instellingen voor zelfaanmelding/maximum aantal deelnemers te wijzigen — de deelnemerslijst zelf beheer je vanaf de matchday-pagina, niet hier."
+        },
+        {
+          "type": "p",
+          "en": "Click Delete to remove a matchday entirely. Only the most recent matchday in its season can be deleted, and you must type that matchday's exact date to confirm. Deleting a finished matchday also reverses every season point and winner point it awarded.",
+          "nl": "Klik op Delete om een matchday volledig te verwijderen. Alleen de meest recente matchday van een seizoen kan verwijderd worden, en je moet ter bevestiging de exacte datum van die matchday intikken. Het verwijderen van een afgeronde matchday draait ook alle seizoenspunten en winner points terug die ermee behaald zijn."
+        },
+        {
+          "type": "note",
+          "en": "Everything about a matchday — including its match results — is exported before deletion, so nothing is lost outside the app even though it disappears from it.",
+          "nl": "Alles rond een matchday — inclusief de wedstrijdresultaten — wordt vóór verwijdering geëxporteerd, zodat er buiten de app niets verloren gaat, ook al verdwijnt het uit de app zelf."
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "title": { "en": "Your own account", "nl": "Je eigen account" },
+      "blocks": [
+        {
+          "type": "p",
+          "en": "Open Account from the menu to change your own password at any time — fill in your current password and a new one, then Save. This is separate from resetting someone else's password (see Managing participants above).",
+          "nl": "Open Account via het menu om op elk moment je eigen wachtwoord te wijzigen — vul je huidige wachtwoord en een nieuw wachtwoord in en klik op Save. Dit is iets anders dan het wachtwoord van iemand anders resetten (zie Deelnemers beheren hierboven)."
+        }
+      ]
+    }
+  ]
+}
