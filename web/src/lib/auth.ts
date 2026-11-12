@@ -104,6 +104,36 @@ export function getCurrentSession(): Promise<CognitoUserSession | null> {
   });
 }
 
+/**
+ * Exchanges the stored refresh token for new ID/access tokens right now,
+ * whether or not the cached ones look expired — unlike getCurrentSession,
+ * which only refreshes once this device's clock says they are. For when
+ * the server has already rejected a token this device still believed in.
+ * Resolves null when nobody is signed in.
+ */
+export function forceRefreshSession(): Promise<CognitoUserSession | null> {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = userPool.getCurrentUser();
+    if (!cognitoUser) {
+      resolve(null);
+      return;
+    }
+    cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
+      if (err || !session) {
+        reject(err ?? new Error('Not signed in.'));
+        return;
+      }
+      cognitoUser.refreshSession(
+        session.getRefreshToken(),
+        (refreshErr: Error | null, refreshed: CognitoUserSession | null) => {
+          if (refreshErr) reject(refreshErr);
+          else resolve(refreshed);
+        }
+      );
+    });
+  });
+}
+
 export interface AuthenticatedUser {
   username: string;
   idToken: string;
