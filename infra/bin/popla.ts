@@ -18,7 +18,17 @@ new PoplaWebStack(app, 'PoplaWebStack');
 
 // One-time manual bootstrap only — never part of the CI deploy. See
 // lib/github-oidc-stack.ts for usage.
+function toOptionalString(value: unknown): string | undefined {
+  return value === undefined || value === null ? undefined : String(value);
+}
+
 const githubRepo = app.node.tryGetContext('githubRepo');
 if (githubRepo) {
-  new GithubOidcStack(app, 'GithubOidcStack', { githubRepo });
+  new GithubOidcStack(app, 'GithubOidcStack', {
+    githubRepo,
+    // Context values given as bare numbers on the command line arrive as
+    // numbers, not strings.
+    githubOwnerId: toOptionalString(app.node.tryGetContext('githubOwnerId')),
+    githubRepoId: toOptionalString(app.node.tryGetContext('githubRepoId')),
+  });
 }

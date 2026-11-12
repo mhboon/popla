@@ -20,12 +20,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
 
-    // The refresh token is valid for 30 days (see backend-stack.ts) so a
-    // participant isn't re-verifying by SMS on every visit — but that's
-    // pointless unless the short-lived (~1hr) cached ID token actually
-    // gets renewed in the background while a tab stays open. getSession()
-    // silently refreshes via the stored refresh token when the cached
-    // tokens are stale.
+    // Keeps `user` (username, admin flag, token) in step with the stored
+    // session while a tab stays open. API calls don't depend on this
+    // timer for a valid token — graphqlRequest looks the token up itself
+    // at request time (see web/src/lib/graphqlClient.ts), because a timer
+    // only notices an expired token at its next tick, and browsers pause
+    // timers in background tabs.
     const interval = setInterval(
       () => {
         getCurrentSession()

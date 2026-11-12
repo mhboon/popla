@@ -40,10 +40,15 @@ sync automatically.
 - **Frontend:** React + Vite + TypeScript (`web/`). A plain `fetch`-based
   GraphQL client rather than Apollo/Amplify — the API surface is small
   enough that a full client library isn't worth the dependency weight.
-  Cognito auth via `amazon-cognito-identity-js`: `USER_SRP_AUTH` for
-  password sign-in, `CUSTOM_AUTH` for the SMS-OTP sign-in used to
-  establish or reset a password (see the Auth section below).
+  Cognito auth via `amazon-cognito-identity-js`, `USER_SRP_AUTH`
+  (phone number + password) only — see the Auth section below.
 - **Frontend hosting:** S3 (private, Origin Access Control) + CloudFront.
+  CloudFront attaches security headers to every response
+  (`infra/lib/web-stack.ts`): a Content-Security-Policy that only lets
+  the page load its own scripts, Google Fonts, and talk to AppSync and
+  Cognito in the deploy region, plus HSTS and a no-framing rule. Anything
+  new the frontend loads from another origin (a script, a font, an API)
+  has to be added to that policy, or the browser blocks it.
 - **API:** AWS AppSync (GraphQL), Cognito User Pool authorizer.
 - **Business logic:** AppSync JS (native) resolvers to DynamoDB for CRUD/
   reads and simple writes; Lambda resolvers for the two operations with
@@ -160,15 +165,15 @@ Plain multi-table design. Each table below is a physical DynamoDB table.
 
 Every table above has `pointInTimeRecoverySpecification` enabled — 35
 days of continuous point-in-time recovery, AWS's own restore mechanism.
-`PoplaOtpChallenges` (not listed above — it's the SMS-OTP challenge
-state from the Auth section below, not app data) deliberately doesn't:
-it's TTL'd ephemeral codes, nothing worth recovering.
 
 On top of that, `BackupTablesFn` (`infra/lambda/backup-tables`) scans
 every table above once daily (`BackupTablesSchedule`, 03:00 UTC cron)
 and writes one plain JSON array per table to `BackupBucket`
 (`s3://<bucket>/<YYYY-MM-DD>/<TableName>.json`), which expires objects
-after 28 days via an S3 lifecycle rule. This is deliberately a plain
+after 28 days via an S3 lifecycle rule. The bucket is versioned,
+TLS-only (`enforceSSL`) and private, since these dumps include
+participants' phone numbers; an expired snapshot's last version is
+removed for good a week after it expires. This is deliberately a plain
 `Scan` + `JSON.stringify`, not DynamoDB's native `ExportTableToPointInTime`:
 these tables are tiny (low hundreds of items at most), so the RCU cost
 of a daily scan is negligible, and a flat, human-readable JSON file per
@@ -338,15 +343,23 @@ incrementally.
 ## Auth
 
 - One Cognito User Pool, one login mechanism for everyone, admin or
-  participant, layered in two parts: an SMS-OTP sign-in (phone number →
-  6-digit code, 10 min validity) that's the only thing that actually
-  proves phone ownership, and an optional password set via that OTP
-  session (`setMyPassword`) for faster return visits. A brand-new Cognito
-  user has no password and must sign in by OTP at least once; "forgot
-  password" isn't a separate mechanism, it's the same OTP sign-in run
-  again, followed by `setMyPassword` — so it inherits the OTP path's
-  existing rate limiting and invalidation guarantees (below) instead of
-  needing its own.
+  participant: phone number + password (`USER_SRP_AUTH`, the only auth
+  flow enabled on the User Pool Client). There is no self-service way to
+  get or recover a password — a first password, and a replacement for a
+  forgotten one, is always a temporary password an admin issues (below).
+  That's deliberate: with admin-only registration and a group this
+  size, an admin already knows everyone who should have access, and it
+  keeps the app from ever sending (and paying for) an SMS.
+- **No SMS-code sign-in.** An earlier version had one (Cognito
+  `CUSTOM_AUTH` with three trigger Lambdas and a `PoplaOtpChallenges`
+  table), later hidden behind a frontend flag. It was removed outright
+  rather than left hidden, because a flow enabled on the User Pool
+  Client is callable straight against Cognito with the public client ID
+  regardless of what the UI links to — and its 6-digit code was only
+  attempt-limited per login attempt, not per phone number, so it could
+  be guessed by simply starting new attempts. Don't re-enable
+  `custom` on the client without a persistent per-phone failed-attempt
+  counter.
 - **Cognito `Username` = the user's international phone number, digits
   only, no leading `+`** (e.g. `31612345678`, not `+31612345678` — see
   `infra/lambda/shared/phone.ts`'s `PHONE_REGEX`), for every user in the
@@ -357,81 +370,42 @@ incrementally.
   changing it forces a full pool replacement). A user's Cognito account
   is created at admin-registration time (when an admin sets/changes a
   `Player`'s `phone`), not at first login; the returned `sub` is stored
-  as `Players.cognitoSub`. SNS's `Publish` API requires true E.164 (with
-  the `+`) to actually deliver an SMS, so `create-auth-challenge`
-  prepends it right before that one call — nowhere else needs to.
-- **The OTP flow is implemented as Cognito `CUSTOM_AUTH`**, handled
-  entirely by three small Lambda triggers on the User Pool
-  (`define-auth-challenge`, `create-auth-challenge`,
-  `verify-auth-challenge-response`). The current code, its 10-minute
-  expiry, and a per-phone send count all live in one DynamoDB table
-  (`PoplaOtpChallenges`, PK `phone`, TTL'd) — deliberately **not**
-  Cognito's own per-round `privateChallengeParameters`, and this is
-  load-bearing, not a style choice: `privateChallengeParameters` is a
-  snapshot cached separately for each individual challenge round, so a
-  Lambda that trusted it would let an *abandoned* round stay completable
-  with its original code for the full 10 minutes even after a newer SMS
-  was sent (e.g. the participant left an old browser tab open, then hit
-  "Resend"). `verify-auth-challenge-response` instead reads the row for
-  `event.userName` fresh, every time, so **sending a new code
-  immediately invalidates any code sent before it** — from any device or
-  tab, not just within the same session. A wrong guess (which
-  re-invokes `create-auth-challenge` with a non-empty `session`) is the
-  one path that deliberately does *not* touch the table — it must not
-  generate a new code or send a new SMS, only let the existing one keep
-  being checked. Sends are capped at **3 per phone per rolling 24
-  hours** (`MAX_SENDS_PER_WINDOW` in `create-auth-challenge`); past the
-  cap the currently-live code (if any) is left untouched rather than
-  cleared, and no further SMS goes out, but the response looks identical
-  to the caller either way — the real protection against someone
-  hammering a specific person's number, on top of the account-level SNS
-  spend limit (set manually, not IaC-managed — see README.md).
-  `create-auth-challenge` sends the SMS directly via SNS `Publish`
-  (as `Transactional`, not the default `Promotional`, since carriers can
-  deprioritize the latter). The User Pool Client has
-  `preventUserExistenceErrors: true`, and both `define-auth-challenge`
-  and `create-auth-challenge` treat an unregistered number identically
-  to a real one (same challenge shape, no real SMS, and
-  `verify-auth-challenge-response` always rejects it) — rather than
-  failing fast, which would let a caller learn a number isn't registered
-  just from how quickly the request fails. Login itself never touches
-  AppSync — the frontend talks to Cognito directly via
-  `amazon-cognito-identity-js`, same as any other Cognito auth flow.
-- **Password sign-in is `USER_SRP_AUTH`**, the User Pool Client's other
-  enabled auth flow alongside `custom`. Passwords are set two ways:
-  - Self-service, via `setMyPassword` (`infra/lambda/set-my-password`) —
-    a Lambda resolver restricted to no group, callable by any
-    authenticated user, that always targets the *caller's own* Cognito
-    `Username` (read off `event.identity.username`, never an argument)
-    via `AdminSetUserPassword(..., Permanent: true)`. Reachability, not
-    the mutation itself, is what makes this safe: it's only callable
-    with a valid session, and the only way to get one without already
-    having a password is the OTP flow above — `setMyPassword` does no
-    independent verification of its own.
-  - An admin resetting it manually, outside the app entirely: `aws
-    cognito-idp admin-set-user-password --username <phone> --password
-    <temp>` (deliberately *without* `--permanent`) from the AWS
-    console/CLI leaves the user in `FORCE_CHANGE_PASSWORD`. Signing in
-    with that temporary password makes `web/src/lib/auth.ts`'s `login`
-    resolve a `newPasswordRequired` result instead of a session —
-    `LoginPage`'s 'new-password-required' screen collects a replacement
-    and calls `completeNewPasswordChallenge`, which sets it as the
-    user's new real password and signs them in, in one step (no separate
-    `setMyPassword` call needed). This is also how a break-glass admin
-    created directly via `admin-create-user` (see README.md) gets going —
-    that leaves the same `FORCE_CHANGE_PASSWORD` state with a
-    Cognito-generated temporary password, so they land on the identical
-    screen on first sign-in. OTP remains available to them too (a bare
-    Cognito user needs no linked `Player` row for any of this — see
-    "Managing admin status" below), just no longer the only path.
+  as `Players.cognitoSub`. It's created with an unusable random
+  placeholder password (`randomUnusedPassword` in
+  `infra/lambda/shared/cognito.ts`), so the new user can't sign in until
+  an admin issues them a temporary one. The phone number is purely an
+  identifier here — nothing is ever sent to it. The User Pool Client has
+  `preventUserExistenceErrors: true`, so a wrong password and an
+  unregistered number look the same to the caller. Login itself never
+  touches AppSync — the frontend talks to Cognito directly via
+  `amazon-cognito-identity-js`.
+- **Passwords are issued by an admin, then replaced by the user:**
+  - In-app: `resetParticipantPassword(playerId)`
+    (`infra/lambda/reset-participant-password`, Admins only) generates a
+    random temporary password, sets it with
+    `AdminSetUserPassword(..., Permanent: false)` and returns it for the
+    admin to pass on in person or by message. That leaves the user in
+    `FORCE_CHANGE_PASSWORD`: signing in with the temporary password makes
+    `web/src/lib/auth.ts`'s `login` resolve a `newPasswordRequired`
+    result instead of a session — `LoginPage`'s 'new-password-required'
+    screen collects a replacement and calls
+    `completeNewPasswordChallenge`, which sets it as the user's real
+    password and signs them in, in one step.
+  - Outside the app: `aws cognito-idp admin-set-user-password --username
+    <phone> --password <temp>` (deliberately *without* `--permanent`)
+    lands in the same `FORCE_CHANGE_PASSWORD` state and the same screen.
+    This is how the very first admin, or a break-glass admin with no
+    linked `Player` row, gets going (see README.md).
 
   Changing a *known* password (Account page) is a separate, simpler
   path: Cognito's own `ChangePassword` API (`web/src/lib/auth.ts`'s
   `changePassword`), called straight from the frontend against the
   signed-in user's session — no Lambda, no AppSync — since Cognito
-  already verifies the old password itself. Cognito's default password
-  policy applies (min. 8 characters, upper/lowercase, a number, a
-  symbol) — not customized.
+  already verifies the old password itself. There is deliberately no
+  mutation that sets the caller's password *without* the old one: a
+  borrowed or stolen session shouldn't be enough to take an account
+  over for good. Cognito's default password policy applies (min. 8
+  characters, upper/lowercase, a number, a symbol) — not customized.
 - `Admins` group — **admin is purely group membership on an otherwise
   ordinary phone-based Cognito user**, not a separate account type
   (this was already true conceptually; login unification just extends
@@ -440,12 +414,10 @@ incrementally.
   `createSeason`, `closeSeason`, `createPlayer`, `updatePlayer`,
   `promoteToAdmin`, `demoteFromAdmin`) are restricted with
   `@aws_auth(cognito_groups: ["Admins"])` in the GraphQL schema —
-  enforced by AppSync itself. `setMatchdayJoining` and `setMyPassword` are
-  the two mutations deliberately *not* schema-restricted — the former
-  because any authenticated user needs it for their own RSVP (see the
-  Resolver Split section for how it self-enforces the admin-only
-  `playerId` argument instead), the latter because it's self-enforced by
-  identity rather than schema, per the Password sign-in bullet above.
+  enforced by AppSync itself. `setMatchdayJoining` is the one mutation
+  deliberately *not* schema-restricted, because any authenticated user
+  needs it for their own RSVP (see the Resolver Split section for how it
+  self-enforces the admin-only `playerId` argument instead).
   Everything else under `Query` is open to any authenticated user by
   default; the one PII field on `Player` (`phone`) is field-gated to
   `Admins` instead. A non-admin caller does resolve that field to `null`
@@ -483,8 +455,8 @@ incrementally.
   permissions, there's nothing to change on the backend; the client just
   changes which UI it shows.
 - Federated social login (Google etc.) remains a theoretical future
-  option on the same pool if ever wanted, but isn't the plan — SMS OTP
-  covers both admin and participant login now.
+  option on the same pool if ever wanted, but isn't the plan — phone
+  number + password covers both admin and participant login now.
 
 ## CDK Structure
 

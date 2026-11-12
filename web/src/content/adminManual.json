@@ -43,12 +43,12 @@
         {
           "type": "ul",
           "en": [
-            "A phone number lets that person sign in themselves (by SMS code) and makes them a full participant.",
+            "A phone number lets that person sign in themselves and makes them a full participant. They can't sign in until you give them a first password — see Resetting a participant's password below.",
             "Leave Phone blank to register a guest instead — someone with no login of their own (see Guests below).",
             "Tick Admin to make them an admin right away. This checkbox only unlocks once a phone number is filled in, since admin access requires being able to log in."
           ],
           "nl": [
-            "Met een telefoonnummer kan die persoon zelf inloggen (via een sms-code) en is hij of zij een volwaardige deelnemer.",
+            "Met een telefoonnummer kan die persoon zelf inloggen en is hij of zij een volwaardige deelnemer. Inloggen kan pas nadat je een eerste wachtwoord hebt gegeven — zie Het wachtwoord van een deelnemer resetten hieronder.",
             "Laat Phone leeg om in plaats daarvan een gast te registreren — iemand zonder eigen login (zie Gasten hieronder).",
             "Vink Admin aan om iemand direct beheerder te maken. Dit vakje is alleen beschikbaar zodra er een telefoonnummer is ingevuld, omdat beheerderstoegang inloggen vereist."
           ]
