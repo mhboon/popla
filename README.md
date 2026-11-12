@@ -84,10 +84,30 @@ account/region before step 1 below.
 
    ```bash
    cd infra
-   npx cdk deploy GithubOidcStack -c githubRepo=<owner>/<repo>
+   npx cdk deploy GithubOidcStack -c githubRepo=<owner>/<repo> \
+     -c githubOwnerId=<owner-id> -c githubRepoId=<repo-id>
    ```
 
    This prints a `DeployRoleArn` output.
+
+   The role trusts exactly this one repo's `main` branch — the trust
+   policy matches the OIDC token's subject literally, with no wildcards,
+   so a look-alike repo name can't assume it. The two numeric IDs are
+   what GitHub's immutable subject format carries
+   (`repo:<owner>@<owner-id>/<repo>@<repo-id>:...` — the default for
+   repos created after 2026-07-15, opt-in for older ones); look them up
+   with:
+
+   ```bash
+   gh api repos/<owner>/<repo> --jq '"owner \(.owner.id), repo \(.id)"'
+   ```
+
+   Leave both `-c` ID options out only for a repo still on the older
+   name-based subject (`repo:<owner>/<repo>:...`). Passing them is
+   harmless either way — both forms of this repo's own subject are then
+   trusted. If the Deploy workflow's "Configure AWS credentials" step
+   fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`,
+   the IDs are missing or wrong.
 
 2. In the GitHub repo, add:
    - **Settings → Secrets and variables → Actions → Secrets**:

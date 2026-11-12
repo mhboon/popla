@@ -5,7 +5,20 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 export interface GithubOidcStackProps extends StackProps {
   /** "owner/repo", e.g. "yourname/popla" */
   githubRepo: string;
+  /**
+   * The numeric GitHub IDs of the owner and the repo. Needed when the
+   * repo issues GitHub's immutable OIDC subject
+   * (`repo:<owner>@<ownerId>/<repo>@<repoId>:...` — the default for repos
+   * created after 2026-07-15, opt-in for older ones); both or neither.
+   */
+  githubOwnerId?: string;
+  githubRepoId?: string;
 }
+
+// GitHub's own naming rules. Checked here because these values end up in
+// an IAM trust policy: nothing but a literal owner/repo name may reach it.
+const GITHUB_REPO_REGEX = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
+const GITHUB_ID_REGEX = /^[0-9]+$/;
 
 /**
  * One-time bootstrap: creates the OIDC trust that lets GitHub Actions
@@ -14,8 +27,18 @@ export interface GithubOidcStackProps extends StackProps {
  * AWS account ID — nothing account-specific is ever written into this
  * (committed, public) source file.
  *
+ * The trust matches the token's `sub` claim *exactly* (StringEquals, no
+ * wildcards). A wildcard after the owner or repo name also matches
+ * look-alike repos that anyone can create (`<owner>-x/<repo>`, or
+ * `<owner>/<repo>-x`), which would leave the role's ARN as the
+ * only thing standing between a stranger and this account's CDK
+ * bootstrap roles.
+ *
  * Deploy this stack yourself, once, with your own local AWS credentials:
- *   npx cdk deploy GithubOidcStack -c githubRepo=<owner>/<repo>
+ *   npx cdk deploy GithubOidcStack -c githubRepo=<owner>/<repo> \
+ *     -c githubOwnerId=<id> -c githubRepoId=<id>
+ * (see README.md for where the two IDs come from, and when they can be
+ * left out).
  * Then copy the printed DeployRoleArn into a GitHub Actions secret named
  * AWS_DEPLOY_ROLE_ARN (Settings > Secrets and variables > Actions). CI
  * never creates or sees this stack — it only assumes the role via that
@@ -38,15 +61,36 @@ export class GithubOidcStack extends Stack {
     // depending on account-level OIDC settings outside this repo's control.
     // Wildcard right after the owner/repo names so the trust matches either
     // form without hardcoding those IDs into committed source.
+    if (!GITHUB_REPO_REGEX.test(props.githubRepo)) {
+      throw new Error(`githubRepo must be "<owner>/<repo>", got "${props.githubRepo}"`);
+    }
+    const { githubOwnerId, githubRepoId } = props;
+    if ((githubOwnerId === undefined) !== (githubRepoId === undefined)) {
+      throw new Error('githubOwnerId and githubRepoId must be given together');
+    }
+    for (const id of [githubOwnerId, githubRepoId]) {
+      if (id !== undefined && !GITHUB_ID_REGEX.test(id)) {
+        throw new Error(`GitHub IDs must be numeric, got "${id}"`);
+      }
+    }
+
     const [githubOwner, githubRepoName] = props.githubRepo.split('/');
+    const ref = 'ref:refs/heads/main';
+    // Both forms GitHub can issue for this one repo's main branch: the
+    // name-based subject, and (only when the IDs were supplied) the
+    // immutable one that carries the owner and repo IDs.
+    const allowedSubjects = [`repo:${githubOwner}/${githubRepoName}:${ref}`];
+    if (githubOwnerId !== undefined && githubRepoId !== undefined) {
+      allowedSubjects.push(
+        `repo:${githubOwner}@${githubOwnerId}/${githubRepoName}@${githubRepoId}:${ref}`
+      );
+    }
 
     const deployRole = new iam.Role(this, 'GithubDeployRole', {
       assumedBy: new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
         StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-        },
-        StringLike: {
-          'token.actions.githubusercontent.com:sub': `repo:${githubOwner}*/${githubRepoName}*:ref:refs/heads/main`,
+          'token.actions.githubusercontent.com:sub': allowedSubjects,
         },
       }),
       description: 'Assumed by GitHub Actions to deploy the Popla Cup CDK stacks',
